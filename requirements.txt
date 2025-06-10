@@ -1,0 +1,15 @@
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch
+torchvision
+numpy
+pillow
+opencv-python
+safetensors
+transformers
+diffusers
+huggingface_hub
+bitsandbytes
+accelerate
+sentencepiece
+protobuf
+tqdm
