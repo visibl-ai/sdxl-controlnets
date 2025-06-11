@@ -54,6 +54,7 @@ cv2_import_time = time.time() - import_start
 # Torchvision import
 import_start = time.time()
 import torchvision.transforms.functional as F
+import torchvision.transforms as transforms
 torchvision_import_time = time.time() - import_start
 
 import_start = time.time()
@@ -70,7 +71,7 @@ class SD3ControlNetPipelineWithCannyFix(StableDiffusion3ControlNetPipeline):
     The standard diffusers implementation doesn't apply the special preprocessing
     required for SD3.5 canny controlnets (image * 255 * 0.5 + 0.5).
     
-    For multi-controlnet, assumes the order is [canny, depth/blur, ...]
+    For multi-controlnet, assumes the order is [canny, depth, blur]
     """
     
     def prepare_control_image(
@@ -135,7 +136,12 @@ class SD3ControlNetPipelineWithCannyFix(StableDiffusion3ControlNetPipeline):
                         is_canny = (i == 0)
                         
                         logger = logging.getLogger(__name__)
-                        control_type_name = 'canny' if is_canny else 'depth/blur'
+                        if i == 0:
+                            control_type_name = 'canny'
+                        elif i == 1:
+                            control_type_name = 'depth'
+                        else:
+                            control_type_name = 'blur'
                         logger.info(f"Processing control image {i} ({control_type_name})")
                         
                         return self.prepare_control_image(
@@ -198,6 +204,7 @@ class Config:
     ## python scripts/convert_sd3_controlnet_to_diffusers.py --checkpoint_path "../sd3.5/models/sd3.5_large_controlnet_depth.safetensors" --output_path ../sd3.5/models/sd3.5_large_controlnet_depth_diffusers
     depth_controlnet_path = "/workspace/sd3.5/models/sd3.5_large_controlnet_depth_diffusers"
     canny_controlnet_path = "/workspace/sd3.5/models/sd3.5_large_controlnet_canny_diffusers"
+    blur_controlnet_path = "/workspace/sd3.5/models/sd3.5_large_controlnet_blur_diffusers"
     depth_model = "Intel/dpt-hybrid-midas"
     
     # Cache and environment
@@ -212,6 +219,7 @@ class Config:
     output_dir = "outputs"
     depth_output = "outputs/diffusers_depth_control.png"
     canny_output = "outputs/diffusers_canny_control.png"
+    blur_output = "outputs/diffusers_blur_control.png"
     final_output = "outputs/diffusers_output.png"
     
     # Generation parameters
@@ -223,15 +231,21 @@ class Config:
     guidance_scale = 3.5      # SD3.5 ControlNet recommended (lower than default)
     depth_controlnet_conditioning_scale = 0.0
     canny_controlnet_conditioning_scale = 0.8
+    blur_controlnet_conditioning_scale = 0.0
     depth_control_guidance_start = 0.0
     canny_control_guidance_start = 0.0
+    blur_control_guidance_start = 0.0
     depth_control_guidance_end = 0.0
     canny_control_guidance_end = 1.0
+    blur_control_guidance_end = 0.0
     seed = None  # Set to specific value for reproducibility
     
     # Canny edge detection parameters
     canny_low_threshold = 50
     canny_high_threshold = 200
+    
+    # Blur parameters
+    blur_kernel_size = 51  # Must be odd number
     
     # Quantization (optional)
     use_4bit_quantization = False
@@ -370,6 +384,26 @@ def generate_canny_map(image, config, logger):
     return edges_rgb
 
 
+def generate_blur_map(image, config, logger):
+    """Generate blur map from input image"""
+    logger.info("Generating blur map...")
+    blur_start = time.time()
+    
+    # Create gaussian blur transform
+    gaussian_blur = transforms.GaussianBlur(kernel_size=config.blur_kernel_size)
+    
+    # Apply blur to the image
+    blurred_image = gaussian_blur(image)
+    
+    # Log blur image dimensions
+    blur_width, blur_height = blurred_image.size
+    logger.info(f"  Blur map dimensions: {blur_width}x{blur_height}")
+    logger.info(f"  Blur kernel size: {config.blur_kernel_size}")
+    
+    logger.info(f"Blur preprocessing completed in {time.time() - blur_start:.2f}s")
+    return blurred_image
+
+
 def load_pipeline(config, logger):
     """Load all models and create the pipeline"""
     logger.info("Loading models...")
@@ -389,8 +423,15 @@ def load_pipeline(config, logger):
         torch_dtype=config.torch_dtype,
         local_files_only=config.local_files_only,
     ).to(config.device)
+
+    logger.info("Loading Blur ControlNet model...")
+    blur_controlnet = SD3ControlNetModel.from_pretrained(
+        config.blur_controlnet_path, 
+        torch_dtype=config.torch_dtype,
+        local_files_only=config.local_files_only,
+    ).to(config.device)
     
-    multi_controlnet = SD3MultiControlNetModel([canny_controlnet, depth_controlnet])
+    multi_controlnet = SD3MultiControlNetModel([canny_controlnet, depth_controlnet, blur_controlnet])
     
     # Load VAE
     logger.info("Loading VAE...")
@@ -510,9 +551,9 @@ def load_pipeline(config, logger):
     return pipe
 
 
-def generate_image(pipeline, depth_image, canny_image, config, logger):
+def generate_image(pipeline, depth_image, canny_image, blur_image, config, logger):
     """Generate image using the pipeline"""
-    logger.info("Starting image generation with canny control...")
+    logger.info("Starting image generation with multi-controlnet...")
     start_time = time.time()
     
     # Set up generator for reproducibility
@@ -524,15 +565,27 @@ def generate_image(pipeline, depth_image, canny_image, config, logger):
     result = pipeline(
         config.prompt,
         negative_prompt=config.negative_prompt,
-        control_image=[canny_image, depth_image],
-        controlnet_conditioning_scale=[config.canny_controlnet_conditioning_scale, config.depth_controlnet_conditioning_scale],
+        control_image=[canny_image, depth_image, blur_image],
+        controlnet_conditioning_scale=[
+            config.canny_controlnet_conditioning_scale, 
+            config.depth_controlnet_conditioning_scale,
+            config.blur_controlnet_conditioning_scale
+        ],
         generator=generator,
         height=config.height, 
         width=config.width,
         num_inference_steps=config.num_inference_steps,
         guidance_scale=config.guidance_scale,
-        control_guidance_start=[config.canny_control_guidance_start, config.depth_control_guidance_start],
-        control_guidance_end=[config.canny_control_guidance_end, config.depth_control_guidance_end],
+        control_guidance_start=[
+            config.canny_control_guidance_start, 
+            config.depth_control_guidance_start,
+            config.blur_control_guidance_start
+        ],
+        control_guidance_end=[
+            config.canny_control_guidance_end, 
+            config.depth_control_guidance_end,
+            config.blur_control_guidance_end
+        ],
     )
     
     image = result.images[0]
@@ -556,8 +609,14 @@ def main():
         input_image = Image.open(config.input_image).convert('RGB')
         logger.info(f"Image loading took {time.time() - image_load_start:.4f} seconds")
         
-        # Load depth processor
+        # Load pipeline and preprocessing models
+        logger.info("=== Loading pipeline and preprocessing models ===")
+        pipeline = load_pipeline(config, logger)
         depth_estimator, feature_extractor = load_depth_processor(config, logger)
+        logger.info("All models loaded successfully")
+        
+        # Process control images
+        logger.info("=== Processing control images ===")
         
         # Generate depth map
         depth_image = generate_depth_map(
@@ -577,18 +636,19 @@ def main():
         
         # Save canny map
         logger.info("Saving canny map...")
-        try:
-            canny_image.save(config.canny_output)
-        except Exception as e:
-            logger.error(f"Failed to save canny image to {config.canny_output}: {str(e)}")
-            raise
+        canny_image.save(config.canny_output)
         
-        # Load pipeline
-        pipeline = load_pipeline(config, logger)
+        # Generate blur map
+        blur_image = generate_blur_map(input_image, config, logger)
         
-        # Generate image using canny control
+        # Save blur map
+        logger.info("Saving blur map...")
+        blur_image.save(config.blur_output)
+        
+        # Generate final image
+        logger.info("=== Generating final image ===")
         # The custom pipeline will handle the special preprocessing internally
-        generated_image = generate_image(pipeline, depth_image, canny_image, config, logger)
+        generated_image = generate_image(pipeline, depth_image, canny_image, blur_image, config, logger)
         
         # Save generated image
         logger.info("Saving generated image...")
