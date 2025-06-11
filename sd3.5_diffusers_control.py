@@ -621,9 +621,14 @@ def generate_image(pipeline, depth_image, canny_image, blur_image, config, logge
     start_time = time.time()
     
     # Set up generator for reproducibility
-    generator = None
-    if config.seed is not None:
-        generator = torch.Generator(device=config.device).manual_seed(config.seed)
+    if config.seed is None:
+        seed = torch.randint(0, 2**32 - 1, (1,)).item()
+        logger.info(f"No seed provided. Using random seed: {seed}")
+    else:
+        seed = config.seed
+        logger.info(f"Using provided seed: {seed}")
+
+    generator = torch.Generator(device=config.device).manual_seed(seed)
     
     # Generate image - the custom pipeline will handle canny preprocessing
     result = pipeline(
@@ -718,6 +723,64 @@ def process_single_generation(pipeline, depth_estimator, feature_extractor, conf
         return False
 
 
+def interactive_mode(pipeline, depth_estimator, feature_extractor, logger):
+    """Run in interactive mode with config.json monitoring"""
+    config_path = "config.json"
+    
+    while True:
+        try:
+            # Try to load config.json
+            if os.path.exists(config_path):
+                logger.info(f"Loading configuration from {config_path}")
+                try:
+                    with open(config_path, 'r') as f:
+                        config_dict = json.load(f)
+                    
+                    # Create config with overrides
+                    config = Config(config_dict)
+                    logger.info("Configuration loaded successfully")
+                except Exception as e:
+                    logger.error(f"Error loading {config_path}: {str(e)}")
+                    logger.info("Using default configuration")
+                    config = Config()
+            else:
+                logger.info(f"{config_path} not found, using default configuration")
+                config = Config()
+            
+            # Process generation
+            logger.info("\n=== Starting generation ===")
+            success = process_single_generation(pipeline, depth_estimator, feature_extractor, config, logger)
+            
+            if success:
+                logger.info("\nGeneration complete!")
+            else:
+                logger.error("\nGeneration failed!")
+            
+            # Ask user what to do next
+            logger.info("\n" + "="*60)
+            logger.info("Options:")
+            logger.info("  - Modify config.json and press ENTER to generate again")
+            logger.info("  - Press Ctrl+C to exit")
+            logger.info("="*60)
+            
+            try:
+                input("\nPress ENTER to generate again (or Ctrl+C to exit)...")
+            except KeyboardInterrupt:
+                logger.info("\nExiting...")
+                break
+                
+        except KeyboardInterrupt:
+            logger.info("\nExiting...")
+            break
+        except Exception as e:
+            logger.error(f"Unexpected error in interactive mode: {str(e)}")
+            logger.info("Press ENTER to try again or Ctrl+C to exit...")
+            try:
+                input()
+            except KeyboardInterrupt:
+                break
+
+
 def main():
     """Main execution function"""
     # Parse command line arguments
@@ -793,11 +856,19 @@ def main():
                 raise
             
         else:
-            # No config file provided - run with defaults
-            logger.info("No configuration file provided, running with default settings")
+            # No config file provided - run in interactive mode
+            logger.info("No batch configuration file provided, entering interactive mode")
+            logger.info("You can create/modify 'config.json' to override default settings")
+            logger.info("\nExample config.json:")
+            logger.info(json.dumps({
+                "prompt": "your prompt here",
+                "input_image": "./inputs/your_image.png",
+                "guidance_scale": 3.5,
+                "num_inference_steps": 60
+            }, indent=2))
             
-            # Process single generation with defaults
-            process_single_generation(pipeline, depth_estimator, feature_extractor, base_config, logger)
+            # Enter interactive mode
+            interactive_mode(pipeline, depth_estimator, feature_extractor, logger)
         
         # Summary
         total_time = time.time() - total_import_start
