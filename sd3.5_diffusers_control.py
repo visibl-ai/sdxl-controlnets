@@ -51,11 +51,142 @@ import_start = time.time()
 import cv2
 cv2_import_time = time.time() - import_start
 
+# Torchvision import
+import_start = time.time()
+import torchvision.transforms.functional as F
+torchvision_import_time = time.time() - import_start
+
 import_start = time.time()
 from huggingface_hub import login
 hf_hub_import_time = time.time() - import_start
 
 total_import_time = time.time() - total_import_start
+
+
+class SD3ControlNetPipelineWithCannyFix(StableDiffusion3ControlNetPipeline):
+    """
+    Custom SD3.5 ControlNet pipeline that properly handles canny preprocessing.
+    
+    The standard diffusers implementation doesn't apply the special preprocessing
+    required for SD3.5 canny controlnets (image * 255 * 0.5 + 0.5).
+    
+    For multi-controlnet, assumes the order is [canny, depth/blur, ...]
+    """
+    
+    def prepare_control_image(
+        self,
+        image,
+        width,
+        height,
+        batch_size,
+        num_images_per_prompt,
+        device,
+        dtype,
+        do_classifier_free_guidance,
+        guess_mode,
+        is_canny=False,
+    ):
+        """Prepare a single control image with optional canny preprocessing"""
+        # First call the parent's prepare_image method to get standard preprocessing
+        image = super().prepare_image(
+            image, width, height, batch_size, num_images_per_prompt,
+            device, dtype, do_classifier_free_guidance, guess_mode
+        )
+        
+        # Apply special preprocessing only for canny
+        logger = logging.getLogger(__name__)
+        if is_canny:
+            # At this point, image is a tensor normalized to [-1, 1]
+            logger.info(f"Applying special SD3.5 canny preprocessing")
+            logger.info(f"  Input tensor shape: {image.shape}")
+            logger.info(f"  Input tensor range: [{image.min().item():.2f}, {image.max().item():.2f}]")
+            
+            # Denormalize from [-1, 1] to [0, 1]
+            image = (image + 1.0) / 2.0
+            
+            # Apply canny preprocessing: * 255 * 0.5 + 0.5
+            # This maps [0, 1] to [0.5, 128]
+            image = image * 255 * 0.5 + 0.5
+            
+            # Log after preprocessing
+            logger.info(f"  Output tensor range: [{image.min().item():.2f}, {image.max().item():.2f}]")
+        else:
+            logger.info(f"Using standard preprocessing")
+        
+        return image
+    
+    def __call__(self, *args, **kwargs):
+        """Override to handle multi-controlnet preprocessing correctly"""
+        # Extract the control_image argument
+        control_image = kwargs.get('control_image', args[11] if len(args) > 11 else None)
+        
+        # If we have multi-controlnet, we need to handle the preprocessing differently
+        if isinstance(self.controlnet, SD3MultiControlNetModel) and control_image is not None:
+            # Store the original prepare_image method
+            original_prepare_image = self.prepare_image
+            
+            # Create a custom prepare_image that uses our enhanced version
+            def custom_prepare_image(image, width, height, batch_size, num_images_per_prompt, 
+                                   device, dtype, do_classifier_free_guidance=False, guess_mode=False):
+                # Determine which controlnet we're processing based on position
+                for i, img in enumerate(control_image):
+                    if img is image:
+                        # First controlnet is always canny
+                        is_canny = (i == 0)
+                        
+                        logger = logging.getLogger(__name__)
+                        control_type_name = 'canny' if is_canny else 'depth/blur'
+                        logger.info(f"Processing control image {i} ({control_type_name})")
+                        
+                        return self.prepare_control_image(
+                            image, width, height, batch_size, num_images_per_prompt,
+                            device, dtype, do_classifier_free_guidance, guess_mode, is_canny
+                        )
+                
+                # Fallback to standard processing
+                return self.prepare_control_image(
+                    image, width, height, batch_size, num_images_per_prompt,
+                    device, dtype, do_classifier_free_guidance, guess_mode, False
+                )
+            
+            # Temporarily replace prepare_image
+            self.prepare_image = custom_prepare_image
+            try:
+                result = super().__call__(*args, **kwargs)
+            finally:
+                # Restore original prepare_image
+                self.prepare_image = original_prepare_image
+            
+            return result
+        else:
+            # Single controlnet case - assume it's canny if using this custom pipeline
+            if control_image is not None and isinstance(self.controlnet, SD3ControlNetModel):
+                logger = logging.getLogger(__name__)
+                logger.info(f"Processing single control image (assuming canny)")
+                
+                # Store the original prepare_image method
+                original_prepare_image = self.prepare_image
+                
+                # Create a custom prepare_image for single controlnet
+                def custom_prepare_image(image, width, height, batch_size, num_images_per_prompt, 
+                                       device, dtype, do_classifier_free_guidance=False, guess_mode=False):
+                    return self.prepare_control_image(
+                        image, width, height, batch_size, num_images_per_prompt,
+                        device, dtype, do_classifier_free_guidance, guess_mode, True  # Assume canny
+                    )
+                
+                # Temporarily replace prepare_image
+                self.prepare_image = custom_prepare_image
+                try:
+                    result = super().__call__(*args, **kwargs)
+                finally:
+                    # Restore original prepare_image
+                    self.prepare_image = original_prepare_image
+                
+                return result
+            else:
+                # No control image or unrecognized controlnet type
+                return super().__call__(*args, **kwargs)
 
 
 class Config:
@@ -90,16 +221,16 @@ class Config:
     width = 1024
     num_inference_steps = 60  # SD3.5 ControlNet recommended
     guidance_scale = 3.5      # SD3.5 ControlNet recommended (lower than default)
-    depth_controlnet_conditioning_scale = 0.85
-    canny_controlnet_conditioning_scale = 0.85
+    depth_controlnet_conditioning_scale = 0.0
+    canny_controlnet_conditioning_scale = 0.8
     depth_control_guidance_start = 0.0
-    canny_control_guidance_start = 0.08
-    depth_control_guidance_end = 0.15
+    canny_control_guidance_start = 0.0
+    depth_control_guidance_end = 0.0
     canny_control_guidance_end = 1.0
     seed = None  # Set to specific value for reproducibility
     
     # Canny edge detection parameters
-    canny_low_threshold = 100
+    canny_low_threshold = 50
     canny_high_threshold = 200
     
     # Quantization (optional)
@@ -124,6 +255,7 @@ def setup_environment(config):
     logger.info(f"diffusers import took {diffusers_import_time:.4f} seconds")
     logger.info(f"transformers import took {transformers_import_time:.4f} seconds")
     logger.info(f"cv2 import took {cv2_import_time:.4f} seconds")
+    logger.info(f"torchvision import took {torchvision_import_time:.4f} seconds")
     logger.info(f"huggingface_hub import took {hf_hub_import_time:.4f} seconds")
     logger.info(f"Total import time: {total_import_time:.4f} seconds")
     
@@ -207,32 +339,35 @@ def generate_depth_map(image, depth_estimator, feature_extractor, config, logger
 def generate_canny_map(image, config, logger):
     """Generate canny edge map from input image"""
     logger.info("Generating canny edge detection...")
-    start_time = time.time()
+    preprocess_start = time.time()
     
-    # Convert to numpy array
-    logger.info("Converting image to numpy array...")
-    np_conversion_start = time.time()
-    np_image = np.array(image)
-    np_conversion_time = time.time() - np_conversion_start
-    logger.info(f"Numpy conversion took {np_conversion_time:.4f} seconds")
+    # Convert PIL to tensor then to numpy
+    img_tensor = F.to_tensor(image)
+    img_np = img_tensor.numpy()
     
-    # Generate canny edge detection
-    logger.info(f"Generating Canny edge detection (thresholds: {config.canny_low_threshold}, {config.canny_high_threshold})...")
-    canny_start = time.time()
-    np_image = cv2.Canny(np_image, config.canny_low_threshold, config.canny_high_threshold)
-    np_image = np_image[:, :, None]
-    np_image = np.concatenate([np_image, np_image, np_image], axis=2)
-    canny_image = Image.fromarray(np_image)
-    canny_time = time.time() - canny_start
-    logger.info(f"Canny edge detection took {canny_time:.4f} seconds")
+    # Convert to grayscale
+    img_gray = cv2.cvtColor(img_np.transpose(1, 2, 0), cv2.COLOR_RGB2GRAY)
     
+    # Convert to uint8 for Canny
+    img_gray = (img_gray * 255).astype('uint8')
+    
+    # Apply Canny edge detection
+    edges = cv2.Canny(img_gray, config.canny_low_threshold, config.canny_high_threshold)
+    
+    # Convert back to PIL Image
+    edges_pil = Image.fromarray(edges)
+    
+    # Convert to RGB (Canny outputs single channel)
+    edges_rgb = edges_pil.convert('RGB')
+    # Log canny image dimensions
+    canny_width, canny_height = edges_rgb.size
+    logger.info(f"  Canny edge map dimensions: {canny_width}x{canny_height}")
     # Resize if needed
-    if canny_image.size != (config.width, config.height):
-        canny_image = canny_image.resize((config.width, config.height), Image.LANCZOS)
+    # if edges_rgb.size != (config.width, config.height):
+    #     edges_rgb = edges_rgb.resize((config.width, config.height), Image.LANCZOS)
     
-    logger.info(f"Canny map generation took {time.time() - start_time:.4f} seconds")
-    
-    return canny_image
+    logger.info(f"Canny preprocessing completed in {time.time() - preprocess_start:.2f}s")
+    return edges_rgb
 
 
 def load_pipeline(config, logger):
@@ -241,13 +376,6 @@ def load_pipeline(config, logger):
     start_time = time.time()
     
     # Load ControlNet
-    logger.info("Loading Depth ControlNet model...")
-    depth_controlnet = SD3ControlNetModel.from_pretrained(
-        config.depth_controlnet_path, 
-        torch_dtype=config.torch_dtype,
-        local_files_only=config.local_files_only,
-    ).to(config.device)
-    
     logger.info("Loading Canny ControlNet model...")
     canny_controlnet = SD3ControlNetModel.from_pretrained(
         config.canny_controlnet_path, 
@@ -255,7 +383,14 @@ def load_pipeline(config, logger):
         local_files_only=config.local_files_only,
     ).to(config.device)
 
-    multi_controlnet = SD3MultiControlNetModel([depth_controlnet, canny_controlnet])
+    logger.info("Loading Depth ControlNet model...")
+    depth_controlnet = SD3ControlNetModel.from_pretrained(
+        config.depth_controlnet_path, 
+        torch_dtype=config.torch_dtype,
+        local_files_only=config.local_files_only,
+    ).to(config.device)
+    
+    multi_controlnet = SD3MultiControlNetModel([canny_controlnet, depth_controlnet])
     
     # Load VAE
     logger.info("Loading VAE...")
@@ -350,9 +485,9 @@ def load_pipeline(config, logger):
         local_files_only=config.local_files_only,
     )
     
-    # Assemble pipeline
-    logger.info("Assembling Stable Diffusion pipeline...")
-    pipe = StableDiffusion3ControlNetPipeline.from_pretrained(
+    # Assemble pipeline with custom canny fix
+    logger.info("Assembling Stable Diffusion pipeline with canny fix...")
+    pipe = SD3ControlNetPipelineWithCannyFix.from_pretrained(
         config.model_repo, 
         controlnet=multi_controlnet, 
         torch_dtype=config.torch_dtype,
@@ -377,7 +512,7 @@ def load_pipeline(config, logger):
 
 def generate_image(pipeline, depth_image, canny_image, config, logger):
     """Generate image using the pipeline"""
-    logger.info("Starting image generation...")
+    logger.info("Starting image generation with canny control...")
     start_time = time.time()
     
     # Set up generator for reproducibility
@@ -385,19 +520,19 @@ def generate_image(pipeline, depth_image, canny_image, config, logger):
     if config.seed is not None:
         generator = torch.Generator(device=config.device).manual_seed(config.seed)
     
-    # Generate image
+    # Generate image - the custom pipeline will handle canny preprocessing
     result = pipeline(
         config.prompt,
         negative_prompt=config.negative_prompt,
-        control_image=[depth_image, canny_image],
-        controlnet_conditioning_scale=[config.depth_controlnet_conditioning_scale, config.canny_controlnet_conditioning_scale],
+        control_image=[canny_image, depth_image],
+        controlnet_conditioning_scale=[config.canny_controlnet_conditioning_scale, config.depth_controlnet_conditioning_scale],
         generator=generator,
         height=config.height, 
         width=config.width,
         num_inference_steps=config.num_inference_steps,
         guidance_scale=config.guidance_scale,
-        control_guidance_start=[config.depth_control_guidance_start, config.canny_control_guidance_start],  # Depth starts at 0%, Canny at 8%
-        control_guidance_end=[config.depth_control_guidance_end, config.canny_control_guidance_end],    # Depth ends at 15%, Canny at 100%
+        control_guidance_start=[config.canny_control_guidance_start, config.depth_control_guidance_start],
+        control_guidance_end=[config.canny_control_guidance_end, config.depth_control_guidance_end],
     )
     
     image = result.images[0]
@@ -407,10 +542,7 @@ def generate_image(pipeline, depth_image, canny_image, config, logger):
 
 
 def main():
-    """Main execution function"""
-    # Track total execution time
-    total_start = time.time()
-    
+    """Main execution function"""    
     # Initialize configuration
     config = Config()
     
@@ -421,7 +553,7 @@ def main():
         # Load input image once
         logger.info("Loading input image...")
         image_load_start = time.time()
-        input_image = load_image(config.input_image)
+        input_image = Image.open(config.input_image).convert('RGB')
         logger.info(f"Image loading took {time.time() - image_load_start:.4f} seconds")
         
         # Load depth processor
@@ -445,13 +577,17 @@ def main():
         
         # Save canny map
         logger.info("Saving canny map...")
-        canny_output_path = os.path.join(config.canny_output)
-        canny_image.save(canny_output_path)
+        try:
+            canny_image.save(config.canny_output)
+        except Exception as e:
+            logger.error(f"Failed to save canny image to {config.canny_output}: {str(e)}")
+            raise
         
         # Load pipeline
         pipeline = load_pipeline(config, logger)
         
-        # Generate image using both depth and canny control
+        # Generate image using canny control
+        # The custom pipeline will handle the special preprocessing internally
         generated_image = generate_image(pipeline, depth_image, canny_image, config, logger)
         
         # Save generated image
@@ -459,7 +595,7 @@ def main():
         generated_image.save(config.final_output)
         
         # Summary
-        total_time = time.time() - total_start
+        total_time = time.time() - total_import_start
         logger.info(f"Total execution time: {total_time:.4f} seconds")
         logger.info(f"Output saved to: {config.final_output}")
         
