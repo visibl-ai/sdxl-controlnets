@@ -1,6 +1,9 @@
 import logging
 import time
 import os
+import json
+import argparse
+import sys
 
 # Track total import time
 total_import_start = time.time()
@@ -197,62 +200,110 @@ class SD3ControlNetPipelineWithCannyFix(StableDiffusion3ControlNetPipeline):
 
 class Config:
     """Configuration for SD3.5 ControlNet pipeline"""
-    # Model paths
-    model_repo = "stabilityai/stable-diffusion-3.5-large"
-    ## need to convert to diffusers format. 
-    ## https://github.com/huggingface/diffusers/blob/6c7fad7ec8b2417c92326804e1751658874fd43b/scripts/convert_sd3_controlnet_to_diffusers.py#L2
-    ## python scripts/convert_sd3_controlnet_to_diffusers.py --checkpoint_path "../sd3.5/models/sd3.5_large_controlnet_depth.safetensors" --output_path ../sd3.5/models/sd3.5_large_controlnet_depth_diffusers
-    depth_controlnet_path = "/workspace/sd3.5/models/sd3.5_large_controlnet_depth_diffusers"
-    canny_controlnet_path = "/workspace/sd3.5/models/sd3.5_large_controlnet_canny_diffusers"
-    blur_controlnet_path = "/workspace/sd3.5/models/sd3.5_large_controlnet_blur_diffusers"
-    depth_model = "Intel/dpt-hybrid-midas"
+    def __init__(self, json_config=None):
+        # Model paths
+        self.model_repo = "stabilityai/stable-diffusion-3.5-large"
+        ## need to convert to diffusers format. 
+        ## https://github.com/huggingface/diffusers/blob/6c7fad7ec8b2417c92326804e1751658874fd43b/scripts/convert_sd3_controlnet_to_diffusers.py#L2
+        ## python scripts/convert_sd3_controlnet_to_diffusers.py --checkpoint_path "../sd3.5/models/sd3.5_large_controlnet_depth.safetensors" --output_path ../sd3.5/models/sd3.5_large_controlnet_depth_diffusers
+        self.depth_controlnet_path = "/workspace/sd3.5/models/sd3.5_large_controlnet_depth_diffusers"
+        self.canny_controlnet_path = "/workspace/sd3.5/models/sd3.5_large_controlnet_canny_diffusers"
+        self.blur_controlnet_path = "/workspace/sd3.5/models/sd3.5_large_controlnet_blur_diffusers"
+        self.depth_model = "Intel/dpt-hybrid-midas"
+        
+        # Cache and environment
+        self.cache_dir = "./cache"
+        self.device = "cuda"
+        self.torch_dtype = torch.bfloat16
+        self.local_files_only = True
+        self.offline_mode = True
+        
+        # Input/Output paths
+        self.input_image = "./inputs/square.png"
+        self.output_dir = "outputs"
+        self.depth_output = "outputs/diffusers_depth_control.png"
+        self.canny_output = "outputs/diffusers_canny_control.png"
+        self.blur_output = "outputs/diffusers_blur_control.png"
+        self.final_output = "outputs/diffusers_output.png"
+        
+        # Generation parameters
+        self.prompt = "studio ghibli style"
+        self.negative_prompt = "low quality, incomplete, blurred, deformed"
+        self.height = 1024
+        self.width = 1024
+        self.num_inference_steps = 60  # SD3.5 ControlNet recommended
+        self.guidance_scale = 3.5      # SD3.5 ControlNet recommended (lower than default)
+        self.depth_controlnet_conditioning_scale = 0.7
+        self.canny_controlnet_conditioning_scale = 0.7
+        self.blur_controlnet_conditioning_scale = 0.7
+        self.depth_control_guidance_start = 0.0
+        self.canny_control_guidance_start = 0.0
+        self.blur_control_guidance_start = 0.0
+        self.depth_control_guidance_end = 1.0
+        self.canny_control_guidance_end = 1.0
+        self.blur_control_guidance_end = 1.0
+        self.seed = None  # Set to specific value for reproducibility
+        
+        # Canny edge detection parameters
+        self.canny_low_threshold = 50
+        self.canny_high_threshold = 200
+        
+        # Blur parameters
+        self.blur_kernel_size = 101  # Must be odd number
+        
+        # Quantization (optional)
+        self.use_4bit_quantization = False
+        
+        # Logging
+        self.log_level = logging.INFO
+        self.log_format = '%(asctime)s - %(levelname)s - %(message)s'
+        
+        # Override with JSON config if provided
+        if json_config:
+            self.update_from_json(json_config)
     
-    # Cache and environment
-    cache_dir = "./cache"
-    device = "cuda"
-    torch_dtype = torch.bfloat16
-    local_files_only = True
-    offline_mode = True
+    def update_from_json(self, json_config):
+        """Update configuration from JSON dictionary"""
+        logger = logging.getLogger(__name__)
+        
+        # Handle special cases for data types
+        for key, value in json_config.items():
+            if hasattr(self, key):
+                # Handle torch dtype specially
+                if key == 'torch_dtype' and isinstance(value, str):
+                    if value == 'bfloat16':
+                        self.torch_dtype = torch.bfloat16
+                    elif value == 'float16':
+                        self.torch_dtype = torch.float16
+                    elif value == 'float32':
+                        self.torch_dtype = torch.float32
+                    else:
+                        logger.warning(f"Unknown torch dtype: {value}, keeping default")
+                # Handle log level specially
+                elif key == 'log_level' and isinstance(value, str):
+                    level_map = {
+                        'DEBUG': logging.DEBUG,
+                        'INFO': logging.INFO,
+                        'WARNING': logging.WARNING,
+                        'ERROR': logging.ERROR,
+                        'CRITICAL': logging.CRITICAL
+                    }
+                    if value.upper() in level_map:
+                        self.log_level = level_map[value.upper()]
+                    else:
+                        logger.warning(f"Unknown log level: {value}, keeping default")
+                else:
+                    setattr(self, key, value)
+                    logger.info(f"Config override: {key} = {value}")
+            else:
+                logger.warning(f"Unknown config key in JSON: {key}")
     
-    # Input/Output paths
-    input_image = "./inputs/square.png"
-    output_dir = "outputs"
-    depth_output = "outputs/diffusers_depth_control.png"
-    canny_output = "outputs/diffusers_canny_control.png"
-    blur_output = "outputs/diffusers_blur_control.png"
-    final_output = "outputs/diffusers_output.png"
-    
-    # Generation parameters
-    prompt = "studio ghibli style"
-    negative_prompt = "low quality, incomplete, blurred"
-    height = 1024
-    width = 1024
-    num_inference_steps = 60  # SD3.5 ControlNet recommended
-    guidance_scale = 3.5      # SD3.5 ControlNet recommended (lower than default)
-    depth_controlnet_conditioning_scale = 0.0
-    canny_controlnet_conditioning_scale = 0.8
-    blur_controlnet_conditioning_scale = 0.0
-    depth_control_guidance_start = 0.0
-    canny_control_guidance_start = 0.0
-    blur_control_guidance_start = 0.0
-    depth_control_guidance_end = 0.0
-    canny_control_guidance_end = 1.0
-    blur_control_guidance_end = 0.0
-    seed = None  # Set to specific value for reproducibility
-    
-    # Canny edge detection parameters
-    canny_low_threshold = 50
-    canny_high_threshold = 200
-    
-    # Blur parameters
-    blur_kernel_size = 51  # Must be odd number
-    
-    # Quantization (optional)
-    use_4bit_quantization = False
-    
-    # Logging
-    log_level = logging.INFO
-    log_format = '%(asctime)s - %(levelname)s - %(message)s'
+    @classmethod
+    def from_json_file(cls, json_path):
+        """Create Config instance from JSON file"""
+        with open(json_path, 'r') as f:
+            json_config = json.load(f)
+        return cls(json_config)
 
 
 def setup_environment(config):
@@ -415,7 +466,9 @@ def load_pipeline(config, logger):
         config.canny_controlnet_path, 
         torch_dtype=config.torch_dtype,
         local_files_only=config.local_files_only,
-    ).to(config.device)
+    ).to(config.device) 
+    # MODAL - you might be able to move all this .to stuff
+    # later on and snapshot memory.
 
     logger.info("Loading Depth ControlNet model...")
     depth_controlnet = SD3ControlNetModel.from_pretrained(
@@ -594,26 +647,16 @@ def generate_image(pipeline, depth_image, canny_image, blur_image, config, logge
     return image
 
 
-def main():
-    """Main execution function"""    
-    # Initialize configuration
-    config = Config()
-    
-    # Setup environment and logging
-    logger = setup_environment(config)
+def process_single_generation(pipeline, depth_estimator, feature_extractor, config, logger):
+    """Process a single generation with the given configuration"""
+    generation_start = time.time()
     
     try:
-        # Load input image once
-        logger.info("Loading input image...")
+        # Load input image
+        logger.info(f"Loading input image: {config.input_image}")
         image_load_start = time.time()
         input_image = Image.open(config.input_image).convert('RGB')
         logger.info(f"Image loading took {time.time() - image_load_start:.4f} seconds")
-        
-        # Load pipeline and preprocessing models
-        logger.info("=== Loading pipeline and preprocessing models ===")
-        pipeline = load_pipeline(config, logger)
-        depth_estimator, feature_extractor = load_depth_processor(config, logger)
-        logger.info("All models loaded successfully")
         
         # Process control images
         logger.info("=== Processing control images ===")
@@ -654,10 +697,83 @@ def main():
         logger.info("Saving generated image...")
         generated_image.save(config.final_output)
         
+        logger.info(f"Generation completed in {time.time() - generation_start:.4f} seconds")
+        logger.info(f"Output saved to: {config.final_output}")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error during generation: {str(e)}")
+        return False
+
+
+def main():
+    """Main execution function"""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='SD3.5 ControlNet Pipeline')
+    parser.add_argument('--config', type=str, help='Path to JSON configuration file containing array of configurations')
+    args = parser.parse_args()
+    
+    # Initialize base configuration for initial setup
+    base_config = Config()
+    
+    # Setup environment and logging with base config
+    logger = setup_environment(base_config)
+    
+    try:
+        # Load pipeline and preprocessing models once (before processing any configs)
+        logger.info("=== Loading pipeline and preprocessing models ===")
+        pipeline = load_pipeline(base_config, logger)
+        depth_estimator, feature_extractor = load_depth_processor(base_config, logger)
+        logger.info("All models loaded successfully")
+        
+        # MODAL - inference starts here. 
+
+        if args.config:
+            # Load configurations from JSON file
+            logger.info(f"Loading configurations from: {args.config}")
+            
+            with open(args.config, 'r') as f:
+                configs = json.load(f)
+            
+            if not isinstance(configs, list):
+                raise ValueError("Configuration file must contain a JSON array of configurations")
+            
+            if len(configs) == 0:
+                raise ValueError("Configuration array is empty")
+            
+            logger.info(f"Found {len(configs)} configurations to process")
+            
+            # Process each configuration
+            successful = 0
+            failed = 0
+            
+            for i, config_dict in enumerate(configs):
+                logger.info(f"\n{'='*60}")
+                logger.info(f"Processing configuration {i+1}/{len(configs)}")
+                
+                # Create a new config with overrides
+                item_config = Config(config_dict)
+                
+                # Process this configuration
+                if process_single_generation(pipeline, depth_estimator, feature_extractor, item_config, logger):
+                    successful += 1
+                else:
+                    failed += 1
+            
+            logger.info(f"\n{'='*60}")
+            logger.info(f"Batch processing complete: {successful} successful, {failed} failed")
+            
+        else:
+            # No config file provided - run with defaults
+            logger.info("No configuration file provided, running with default settings")
+            
+            # Process single generation with defaults
+            process_single_generation(pipeline, depth_estimator, feature_extractor, base_config, logger)
+        
         # Summary
         total_time = time.time() - total_import_start
         logger.info(f"Total execution time: {total_time:.4f} seconds")
-        logger.info(f"Output saved to: {config.final_output}")
         
     except Exception as e:
         logger.error(f"Error occurred: {str(e)}")
