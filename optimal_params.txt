@@ -1,0 +1,73 @@
+Canny:
+{
+
+  "num_inference_steps": 40,
+  "guidance_scale": 4.5,
+  "depth_controlnet_conditioning_scale": 0.0,
+  "canny_controlnet_conditioning_scale": 0.75,
+  "blur_controlnet_conditioning_scale": 0,
+  "depth_control_guidance_start": 0.0,
+  "canny_control_guidance_start": 0.03,
+  "blur_control_guidance_start": 0.0,
+  "depth_control_guidance_end": 0.0,
+  "canny_control_guidance_end": 0.35,
+  "blur_control_guidance_end": 0.0,
+  "seed": 3737585971,
+  "canny_low_threshold": 75,
+  "canny_high_threshold": 200,
+}
+
+depth:
+Broken?
+- Fix with? https://github.com/DepthAnything/Depth-Anything-V2
+
+
+Blur:
+- Really good
+  "num_inference_steps": 60,
+  "guidance_scale": 4.5,
+  "depth_controlnet_conditioning_scale": 0,
+  "canny_controlnet_conditioning_scale": 0.0,
+  "blur_controlnet_conditioning_scale": 0.5,
+  "depth_control_guidance_start": 0.00,
+  "canny_control_guidance_start": 0.00,
+  "blur_control_guidance_start": 0.1,
+  "depth_control_guidance_end": 1,
+  "canny_control_guidance_end": 0.35,
+  "blur_control_guidance_end": 0.4,
+  "seed": 3737585971,
+  "canny_low_threshold": 75,
+  "canny_high_threshold": 200,
+  "blur_kernel_size": 55,
+
+
+  Combined?
+  {
+  "prompt": "egyptian hieroglyphs, best quality, extremely detailed",
+  "negative_prompt": "low quality, incomplete, blurred, deformed",
+  "input_image": "./inputs/square.png",
+  "output_dir": "outputs",
+  "depth_output": "outputs/diffusers_depth_control.png",
+  "canny_output": "outputs/diffusers_canny_control.png",
+  "blur_output": "outputs/diffusers_blur_control.png",
+  "final_output": "outputs/diffusers_output.png",
+  "height": 1024,
+  "width": 1024,
+  "num_inference_steps": 60,
+  "guidance_scale": 4.5,
+  "depth_controlnet_conditioning_scale": 0,
+  "canny_controlnet_conditioning_scale": 0.5,
+  "blur_controlnet_conditioning_scale": 0.5,
+  "depth_control_guidance_start": 0.00,
+  "canny_control_guidance_start": 0.03,
+  "blur_control_guidance_start": 0.1,
+  "depth_control_guidance_end": 1,
+  "canny_control_guidance_end": 0.2,
+  "blur_control_guidance_end": 0.4,
+  "seed": 3737585971,
+  "canny_low_threshold": 75,
+  "canny_high_threshold": 200,
+  "blur_kernel_size": 55,
+  "use_4bit_quantization": false,
+  "log_level": "INFO"
+}
