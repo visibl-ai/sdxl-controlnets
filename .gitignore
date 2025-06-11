@@ -1,3 +1,9 @@
 multi-control-plan.txt
 test/*
 diffusers/
+.DS_Store
+goal.txt
+large_batch_test.json
+large_batch_test_analysis.txt
+outputs/
+outputs.zip

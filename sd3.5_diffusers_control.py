@@ -744,36 +744,53 @@ def main():
             # Load configurations from JSON file
             logger.info(f"Loading configurations from: {args.config}")
             
-            with open(args.config, 'r') as f:
-                configs = json.load(f)
-            
-            if not isinstance(configs, list):
-                raise ValueError("Configuration file must contain a JSON array of configurations")
-            
-            if len(configs) == 0:
-                raise ValueError("Configuration array is empty")
-            
-            logger.info(f"Found {len(configs)} configurations to process")
-            
-            # Process each configuration
-            successful = 0
-            failed = 0
-            
-            for i, config_dict in enumerate(configs):
+            try:
+                with open(args.config, 'r') as f:
+                    configs = json.load(f)
+                
+                if not isinstance(configs, list):
+                    raise ValueError("Configuration file must contain a JSON array of configurations")
+                
+                if len(configs) == 0:
+                    raise ValueError("Configuration array is empty")
+                
+                logger.info(f"Found {len(configs)} configurations to process")
+                
+                # Process each configuration
+                successful = 0
+                failed = 0
+                
+                for i, config_dict in enumerate(configs):
+                    logger.info(f"\n{'='*60}")
+                    logger.info(f"Processing configuration {i+1}/{len(configs)}")
+                    
+                    try:
+                        # Create a new config with overrides
+                        item_config = Config(config_dict)
+                        
+                        # Process this configuration
+                        if process_single_generation(pipeline, depth_estimator, feature_extractor, item_config, logger):
+                            successful += 1
+                        else:
+                            failed += 1
+                    except Exception as e:
+                        logger.error(f"Error processing configuration {i+1}: {str(e)}")
+                        logger.error(f"Skipping to next configuration...")
+                        failed += 1
+                        continue
+                
                 logger.info(f"\n{'='*60}")
-                logger.info(f"Processing configuration {i+1}/{len(configs)}")
+                logger.info(f"Batch processing complete: {successful} successful, {failed} failed")
                 
-                # Create a new config with overrides
-                item_config = Config(config_dict)
-                
-                # Process this configuration
-                if process_single_generation(pipeline, depth_estimator, feature_extractor, item_config, logger):
-                    successful += 1
-                else:
-                    failed += 1
-            
-            logger.info(f"\n{'='*60}")
-            logger.info(f"Batch processing complete: {successful} successful, {failed} failed")
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parsing JSON configuration file: {str(e)}")
+                raise
+            except FileNotFoundError:
+                logger.error(f"Configuration file not found: {args.config}")
+                raise
+            except Exception as e:
+                logger.error(f"Error loading configuration file: {str(e)}")
+                raise
             
         else:
             # No config file provided - run with defaults
