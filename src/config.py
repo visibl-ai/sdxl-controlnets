@@ -1,6 +1,7 @@
 import logging
 import json
 import torch
+from .image_preprocessing import SUPPORTED_DIMENSIONS
 
 
 class Config:
@@ -34,8 +35,11 @@ class Config:
         # Generation parameters
         self.prompt = "studio ghibli style"
         self.negative_prompt = "low quality, incomplete, blurred, deformed"
-        self.height = 1024
-        self.width = 1024
+        # Aspect ratio configuration
+        self.aspect_ratio = "auto"  # "auto", "square", "landscape", "portrait"
+        # Height and width will be set dynamically based on aspect ratio
+        self.height = None  # Will be set during preprocessing
+        self.width = None   # Will be set during preprocessing
         self.num_inference_steps = 60  # SD3.5 ControlNet recommended
         self.guidance_scale = 3.5      # SD3.5 ControlNet recommended (lower than default)
         self.depth_controlnet_conditioning_scale = 0.7
@@ -102,6 +106,38 @@ class Config:
                     logger.info(f"Config override: {key} = {value}")
             else:
                 logger.warning(f"Unknown config key in JSON: {key}")
+    
+    def get_target_aspect_ratio(self):
+        """
+        Get the target aspect ratio to use for preprocessing.
+        Returns None if auto-detection should be used.
+        """
+        # If aspect_ratio is explicitly set to a valid option (not "auto"),
+        # use it regardless of auto_aspect_ratio setting
+        if self.aspect_ratio and self.aspect_ratio != "auto":
+            if self.aspect_ratio in ["square", "landscape", "portrait"]:
+                return self.aspect_ratio
+            else:
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Invalid aspect_ratio '{self.aspect_ratio}', using auto-detection")
+                return None
+        # Otherwise, use auto-detection
+        return None
+    
+    def validate_dimensions(self):
+        """Validate that dimensions are set and match supported values"""
+        if self.height is None or self.width is None:
+            raise ValueError("Height and width must be set before generation")
+        
+        # Check if dimensions match any supported configuration
+        current_dims = (self.width, self.height)
+        valid = any(dims == current_dims for dims in SUPPORTED_DIMENSIONS.values())
+        
+        if not valid:
+            raise ValueError(
+                f"Dimensions {self.width}x{self.height} not supported. "
+                f"Supported dimensions: {list(SUPPORTED_DIMENSIONS.values())}"
+            )
     
     @classmethod
     def from_json_file(cls, json_path):

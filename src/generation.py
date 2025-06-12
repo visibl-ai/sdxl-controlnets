@@ -3,6 +3,7 @@ import logging
 import torch
 from PIL import Image
 from .generate_control_images import generate_depth_map, generate_canny_map, generate_blur_map
+from .image_preprocessing import pre_process_input
 
 
 def generate_image(pipeline, depth_image, canny_image, blur_image, config, logger):
@@ -69,12 +70,31 @@ def process_single_generation(pipeline, depth_estimator, feature_extractor, conf
         input_image = Image.open(config.input_image).convert('RGB')
         logger.info(f"Image loading took {time.time() - image_load_start:.4f} seconds")
         
-        # Process control images
+        # Preprocess image to supported dimensions
+        logger.info("=== Preprocessing input image ===")
+        preprocess_start = time.time()
+        target_aspect_ratio = config.get_target_aspect_ratio()
+        processed_image, width, height = pre_process_input(
+            input_image, 
+            target_aspect_ratio=target_aspect_ratio,
+            logger=logger
+        )
+        
+        # Update config dimensions
+        config.width = width
+        config.height = height
+        
+        # Validate dimensions
+        config.validate_dimensions()
+        
+        logger.info(f"Preprocessing took {time.time() - preprocess_start:.4f} seconds")
+        
+        # Process control images using preprocessed image
         logger.info("=== Processing control images ===")
         
         # Generate depth map
         depth_image = generate_depth_map(
-            input_image, 
+            processed_image,  # Use preprocessed image
             depth_estimator, 
             feature_extractor, 
             config, 
@@ -86,14 +106,14 @@ def process_single_generation(pipeline, depth_estimator, feature_extractor, conf
         depth_image.save(config.depth_output)
         
         # Generate canny map
-        canny_image = generate_canny_map(input_image, config, logger)
+        canny_image = generate_canny_map(processed_image, config, logger)  # Use preprocessed image
         
         # Save canny map
         logger.info("Saving canny map...")
         canny_image.save(config.canny_output)
         
         # Generate blur map
-        blur_image = generate_blur_map(input_image, config, logger)
+        blur_image = generate_blur_map(processed_image, config, logger)  # Use preprocessed image
         
         # Save blur map
         logger.info("Saving blur map...")
