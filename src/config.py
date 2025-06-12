@@ -11,9 +11,9 @@ class Config:
         ## need to convert to diffusers format. 
         ## https://github.com/huggingface/diffusers/blob/6c7fad7ec8b2417c92326804e1751658874fd43b/scripts/convert_sd3_controlnet_to_diffusers.py#L2
         ## python scripts/convert_sd3_controlnet_to_diffusers.py --checkpoint_path "../sd3.5/models/sd3.5_large_controlnet_depth.safetensors" --output_path ../sd3.5/models/sd3.5_large_controlnet_depth_diffusers
-        self.depth_controlnet_path = "/workspace/sd3.5/models/sd3.5_large_controlnet_depth_diffusers"
-        self.canny_controlnet_path = "/workspace/sd3.5/models/sd3.5_large_controlnet_canny_diffusers"
-        self.blur_controlnet_path = "/workspace/sd3.5/models/sd3.5_large_controlnet_blur_diffusers"
+        self.depth_controlnet_path = "moeadham/stable-diffusion-3.5-large-controlnet-depth-diffusers"
+        self.canny_controlnet_path = "moeadham/stable-diffusion-3.5-large-controlnet-canny-diffusers"
+        self.blur_controlnet_path = "moeadham/stable-diffusion-3.5-large-controlnet-blur-diffusers"
         self.depth_model = "Intel/dpt-hybrid-midas"
         
         # Cache and environment
