@@ -7,3 +7,4 @@ large_batch_test.json
 large_batch_test_analysis.txt
 outputs/
 outputs.zip
+__pycache__/
