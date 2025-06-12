@@ -20,7 +20,7 @@ class Config:
         # Depth model configuration
         self.depth_model_type = os.environ.get("DEPTH_MODEL_TYPE", "depth_anything_v2")  # Options: "dpt" or "depth_anything_v2"
         self.depth_model = "Intel/dpt-hybrid-midas"  # Used when depth_model_type is "dpt"
-        self.depth_anything_model = "depth-anything/Depth-Anything-V2-Large-hf"  # Used when depth_model_type is "depth_anything_v2"
+        self.depth_anything_model = os.environ.get("DEPTH_ANYTHING_MODEL", "depth-anything/Depth-Anything-V2-Large-hf")  # Used when depth_model_type is "depth_anything_v2"
         
         # Cache and environment
         self.cache_dir = "./cache"
