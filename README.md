@@ -36,13 +36,19 @@ Repeat this process for each ControlNet model (Canny, Depth, Blur).
 
 ## Usage
 
-### Default Mode (no arguments)
+### Interactive Mode (no arguments)
 ```bash
 python sd3.5_diffusers_control.py
 ```
-Runs with default configuration values defined in the `Config` class.
+Runs in interactive mode where you can:
+- Generate images using default configuration
+- Create/modify `config.json` file with your settings
+- Press ENTER to regenerate with new settings
+- Press Ctrl+C to exit
 
-### JSON Configuration Mode
+The script will monitor `config.json` and reload it for each generation, allowing you to experiment with different settings without restarting the script.
+
+### Batch Configuration Mode
 ```bash
 python sd3.5_diffusers_control.py --config batch_config.json
 ```
@@ -71,6 +77,23 @@ The configuration file must be a JSON array containing one or more configuration
 ]
 ```
 
+## Environment Variables
+
+The following environment variables can be set to control the pipeline behavior:
+
+- `LOCAL_FILES_ONLY`: Set to "true" (default) to only use locally cached models, "false" to allow downloading
+- `DEPTH_MODEL_TYPE`: Choose depth estimation model - "dpt" or "depth_anything_v2" (default)
+- `DEPTH_ANYTHING_MODEL`: Specify Depth Anything model when using depth_anything_v2 (default: "depth-anything/Depth-Anything-V2-Base-hf")
+- `LOAD_EACH_MODEL`: Set to "true" (default) to load models individually, "false" to load all at once
+
+Example:
+```bash
+export DEPTH_MODEL_TYPE="depth_anything_v2"
+export DEPTH_ANYTHING_MODEL="depth-anything/Depth-Anything-V2-Large-hf"
+export LOCAL_FILES_ONLY="false"
+python sd3.5_diffusers_control.py
+```
+
 ## Available Configuration Parameters
 
 All parameters are optional. If not specified, the default value from the Config class will be used.
@@ -93,8 +116,13 @@ All parameters are optional. If not specified, the default value from the Config
 ### Generation Parameters
 - `prompt`: Text prompt for generation
 - `negative_prompt`: Negative prompt
-- `height`: Image height (default: 1024)
-- `width`: Image width (default: 1024)
+- `aspect_ratio`: Aspect ratio mode - "auto" (default), "square", "landscape", or "portrait"
+  - "auto": Automatically detect from input image
+  - "square": 1024x1024
+  - "landscape": 1344x768 (16:9)
+  - "portrait": 768x1344 (9:16)
+- `height`: Image height (set automatically based on aspect_ratio)
+- `width`: Image width (set automatically based on aspect_ratio)
 - `num_inference_steps`: Number of denoising steps (default: 60)
 - `guidance_scale`: Classifier-free guidance scale (default: 3.5)
 - `seed`: Random seed for reproducibility
@@ -170,6 +198,18 @@ All parameters are optional. If not specified, the default value from the Config
    - Generate the final image using the control maps
    - Save all outputs to specified paths
 3. Report success/failure statistics at the end
+
+## Memory requirements: 
+
+Depends on your model. Should just fit on an L40 or A40. (48GB mem needed)
+```
+depth-anything/Depth-Anything-V2-Base-hf
+|   0  NVIDIA A40                     On  |   00000000:53:00.0 Off |                    0 |
+|  0%   54C    P0            302W /  300W |   45243MiB /  46068MiB |    100%      Default |
+```
+
+`depth-anything/Depth-Anything-V2-Large-hf` gives a better quality depth but is too big to fit on 48gb with everything else. 
+
 
 ## Tips
 
