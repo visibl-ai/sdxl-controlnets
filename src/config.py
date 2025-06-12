@@ -29,6 +29,7 @@ class Config:
         env_val = os.environ.get("LOCAL_FILES_ONLY", "true").lower()
         self.local_files_only = env_val in ("true", "1", "True") # false by default
         self.offline_mode = True
+        self.load_each_model = os.environ.get("LOAD_EACH_MODEL", "true").lower() in ("true", "1", "True")
         
         # Input/Output paths
         self.input_image = "./inputs/square.png"
