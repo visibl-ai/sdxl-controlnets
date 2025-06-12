@@ -56,7 +56,12 @@ def generate_image(pipeline, depth_image, canny_image, blur_image, config, logge
 def process_single_generation(pipeline, depth_estimator, feature_extractor, config, logger):
     """Process a single generation with the given configuration"""
     generation_start = time.time()
-    
+    # Check local_files_only setting
+    if not config.local_files_only:
+        logger.warning("\n" + "!"*80)
+        logger.warning("local_files_only is set to False - this may cause unnecessary network requests")
+        logger.warning("For better performance, set local_files_only: true in config.json after first run")
+        logger.warning("!"*80 + "\n")
     try:
         # Load input image
         logger.info(f"Loading input image: {config.input_image}")
