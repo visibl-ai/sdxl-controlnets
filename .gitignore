@@ -8,3 +8,8 @@ large_batch_test_analysis.txt
 outputs/
 outputs.zip
 __pycache__/
+.venv/
+cache/
+inputs/
+.env
+hub/
