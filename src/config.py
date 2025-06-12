@@ -26,7 +26,8 @@ class Config:
         self.cache_dir = "./cache"
         self.device = "cuda"
         self.torch_dtype = torch.bfloat16
-        self.local_files_only = os.environ.get("LOCAL_FILES_ONLY", False)
+        env_val = os.environ.get("LOCAL_FILES_ONLY", "true").lower()
+        self.local_files_only = env_val in ("true", "1", "True") # false by default
         self.offline_mode = True
         
         # Input/Output paths

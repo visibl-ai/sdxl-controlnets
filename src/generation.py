@@ -61,7 +61,7 @@ def process_single_generation(pipeline, depth_estimator, feature_extractor, conf
     if not config.local_files_only:
         logger.warning("\n" + "!"*80)
         logger.warning("local_files_only is set to False - this may cause unnecessary network requests")
-        logger.warning("For better performance, set local_files_only: true in config.json after first run")
+        logger.warning("For better performance, set local_files_only: true in config after first run")
         logger.warning("!"*80 + "\n")
     try:
         # Load input image
