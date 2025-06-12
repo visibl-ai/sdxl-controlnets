@@ -5,6 +5,9 @@ import json
 import argparse
 import sys
 
+# Log start of imports
+logging.info("Starting imports...")
+
 # Track total import time
 total_import_start = time.time()
 

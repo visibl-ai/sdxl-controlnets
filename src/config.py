@@ -1,6 +1,7 @@
 import logging
 import json
 import torch
+import os
 from .image_preprocessing import SUPPORTED_DIMENSIONS
 
 
@@ -17,7 +18,7 @@ class Config:
         self.blur_controlnet_path = "moeadham/stable-diffusion-3.5-large-controlnet-blur-diffusers"
         
         # Depth model configuration
-        self.depth_model_type = "dpt"  # Options: "dpt" or "depth_anything_v2"
+        self.depth_model_type = os.environ.get("DEPTH_MODEL_TYPE", "dpt")  # Options: "dpt" or "depth_anything_v2"
         self.depth_model = "Intel/dpt-hybrid-midas"  # Used when depth_model_type is "dpt"
         self.depth_anything_model = "depth-anything/Depth-Anything-V2-Large-hf"  # Used when depth_model_type is "depth_anything_v2"
         
@@ -25,7 +26,7 @@ class Config:
         self.cache_dir = "./cache"
         self.device = "cuda"
         self.torch_dtype = torch.bfloat16
-        self.local_files_only = False
+        self.local_files_only = os.environ.get("LOCAL_FILES_ONLY", False)
         self.offline_mode = True
         
         # Input/Output paths
