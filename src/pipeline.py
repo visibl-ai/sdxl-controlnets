@@ -14,13 +14,25 @@ from transformers import (
     DPTForDepthEstimation,
     CLIPTextModelWithProjection, 
     T5EncoderModel,
+    AutoModelForDepthEstimation,
+    AutoImageProcessor,
 )
 from .SD35ControlNetPipelineWithCannyFix import SD35ControlNetPipelineWithCannyFix
 
 
 def load_depth_processor(config, logger):
-    """Load depth estimation models"""
-    logger.info("Loading Depth estimator...")
+    """Load depth estimation models based on config"""
+    if config.depth_model_type == "dpt":
+        return load_dpt_depth_processor(config, logger)
+    elif config.depth_model_type == "depth_anything_v2":
+        return load_depth_anything_v2_processor(config, logger)
+    else:
+        raise ValueError(f"Unknown depth model type: {config.depth_model_type}")
+
+
+def load_dpt_depth_processor(config, logger):
+    """Load DPT depth estimation models"""
+    logger.info("Loading DPT Depth estimator...")
     start_time = time.time()
     
     depth_estimator = DPTForDepthEstimation.from_pretrained(
@@ -37,7 +49,29 @@ def load_depth_processor(config, logger):
         local_files_only=config.local_files_only
     )
     
-    logger.info(f"Depth processor loading took {time.time() - start_time:.4f} seconds")
+    logger.info(f"DPT Depth processor loading took {time.time() - start_time:.4f} seconds")
+    return depth_estimator, feature_extractor
+
+
+def load_depth_anything_v2_processor(config, logger):
+    """Load Depth Anything V2 depth estimation models"""
+    logger.info("Loading Depth Anything V2 estimator...")
+    start_time = time.time()
+    
+    depth_estimator = AutoModelForDepthEstimation.from_pretrained(
+        config.depth_anything_model,
+        cache_dir=config.cache_dir,
+        torch_dtype=config.torch_dtype,
+        local_files_only=config.local_files_only,
+    ).to(config.device)
+    
+    feature_extractor = AutoImageProcessor.from_pretrained(
+        config.depth_anything_model,
+        cache_dir=config.cache_dir,
+        local_files_only=config.local_files_only
+    )
+    
+    logger.info(f"Depth Anything V2 processor loading took {time.time() - start_time:.4f} seconds")
     return depth_estimator, feature_extractor
 
 

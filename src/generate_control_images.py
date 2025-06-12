@@ -9,8 +9,18 @@ import torchvision.transforms as transforms
 
 
 def generate_depth_map(image, depth_estimator, feature_extractor, config, logger):
-    """Generate depth map from input image"""
-    logger.info("Generating depth map...")
+    """Generate depth map from input image based on model type"""
+    if config.depth_model_type == "dpt":
+        return generate_dpt_depth_map(image, depth_estimator, feature_extractor, config, logger)
+    elif config.depth_model_type == "depth_anything_v2":
+        return generate_depth_anything_v2_map(image, depth_estimator, feature_extractor, config, logger)
+    else:
+        raise ValueError(f"Unknown depth model type: {config.depth_model_type}")
+
+
+def generate_dpt_depth_map(image, depth_estimator, feature_extractor, config, logger):
+    """Generate depth map from input image using DPT"""
+    logger.info("Generating depth map with DPT...")
     start_time = time.time()
     
     # Process image for depth estimation
@@ -36,7 +46,46 @@ def generate_depth_map(image, depth_estimator, feature_extractor, config, logger
     depth_image = depth_image.permute(0, 2, 3, 1).cpu().numpy()[0]
     depth_image = Image.fromarray((depth_image * 255.0).clip(0, 255).astype(np.uint8))
     
-    logger.info(f"Depth map generation took {time.time() - start_time:.4f} seconds")
+    logger.info(f"DPT depth map generation took {time.time() - start_time:.4f} seconds")
+    
+    return depth_image
+
+
+def generate_depth_anything_v2_map(image, depth_estimator, feature_extractor, config, logger):
+    """Generate depth map from input image using Depth Anything V2"""
+    logger.info("Generating depth map with Depth Anything V2...")
+    start_time = time.time()
+    
+    # Process image for depth estimation
+    inputs = feature_extractor(images=image, return_tensors="pt")
+    
+    # Move inputs to device
+    for k, v in inputs.items():
+        if isinstance(v, torch.Tensor):
+            inputs[k] = v.to(config.device)
+    
+    with torch.no_grad(), torch.autocast(config.device):
+        outputs = depth_estimator(**inputs)
+        depth_map = outputs.predicted_depth
+    
+    # Normalize and resize depth map
+    depth_map = torch.nn.functional.interpolate(
+        depth_map.unsqueeze(1),
+        size=(config.height, config.width),
+        mode="bicubic",
+        align_corners=False,
+    )
+    
+    depth_min = torch.amin(depth_map, dim=[1, 2, 3], keepdim=True)
+    depth_max = torch.amax(depth_map, dim=[1, 2, 3], keepdim=True)
+    depth_map = (depth_map - depth_min) / (depth_max - depth_min)
+    
+    # Convert to PIL Image
+    depth_image = torch.cat([depth_map] * 3, dim=1)
+    depth_image = depth_image.permute(0, 2, 3, 1).cpu().numpy()[0]
+    depth_image = Image.fromarray((depth_image * 255.0).clip(0, 255).astype(np.uint8))
+    
+    logger.info(f"Depth Anything V2 depth map generation took {time.time() - start_time:.4f} seconds")
     
     return depth_image
 
