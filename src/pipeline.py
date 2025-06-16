@@ -94,13 +94,6 @@ def load_pipeline(config, logger):
         torch_dtype=config.torch_dtype,
         local_files_only=config.local_files_only,
     ).to(config.device)
-
-    # logger.info("Loading Blur ControlNet model...")
-    # blur_controlnet = SD3ControlNetModel.from_pretrained(
-    #     config.blur_controlnet_path, 
-    #     torch_dtype=config.torch_dtype,
-    #     local_files_only=config.local_files_only,
-    # ).to(config.device)
     
     multi_controlnet = MultiControlNetModel([canny_controlnet, depth_controlnet])
     
@@ -112,7 +105,7 @@ def load_pipeline(config, logger):
         local_files_only=config.local_files_only,
     ).to(config.device)
     # Assemble pipeline with custom canny fix
-    logger.info("Assembling Stable Diffusion pipeline with canny fix...")
+    logger.info("Assembling Stable Diffusion pipeline...")
     pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
         config.model_repo, 
         controlnet=multi_controlnet, 
@@ -123,6 +116,7 @@ def load_pipeline(config, logger):
         use_safetensors=True,
     )
 
+    logger.info("Assembling Stable Diffusion refiner pipeline...")
     refiner = StableDiffusionXLImg2ImgPipeline.from_pretrained(
         config.refiner_repo,
         torch_dtype=config.torch_dtype,
@@ -134,5 +128,6 @@ def load_pipeline(config, logger):
 
     # MODAL - Maybe you can snapshot memory here?
     pipe.to(config.device) 
+    refiner.to(config.device)
     logger.info(f"Pipeline loading took {time.time() - start_time:.4f} seconds")
     return pipe, refiner

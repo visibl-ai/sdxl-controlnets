@@ -2,7 +2,7 @@ import time
 import logging
 import torch
 from PIL import Image
-from .generate_control_images import generate_depth_map, generate_canny_map, generate_blur_map
+from .generate_control_images import generate_depth_map, generate_canny_map
 from .image_preprocessing import pre_process_input
 
 
@@ -27,11 +27,10 @@ def generate_image(pipeline, refiner, processed_image, depth_image, canny_image,
         negative_prompt=config.negative_prompt,
         image=processed_image,
         strength=config.original_strength,
-        control_image=[canny_image, depth_image,],#, blur_image],
+        control_image=[canny_image, depth_image,],
         controlnet_conditioning_scale=[
             config.canny_controlnet_conditioning_scale, 
             config.depth_controlnet_conditioning_scale,
-            #config.blur_controlnet_conditioning_scale
         ],
         generator=generator,
         height=config.height, 
@@ -41,12 +40,10 @@ def generate_image(pipeline, refiner, processed_image, depth_image, canny_image,
         control_guidance_start=[
             config.canny_control_guidance_start, 
             config.depth_control_guidance_start,
-            #config.blur_control_guidance_start
         ],
         control_guidance_end=[
             config.canny_control_guidance_end, 
             config.depth_control_guidance_end,
-            #config.blur_control_guidance_end
         ],
     )
     
@@ -123,13 +120,6 @@ def process_single_generation(pipeline, refiner, depth_estimator, feature_extrac
         # Save canny map
         logger.info("Saving canny map...")
         canny_image.save(config.canny_output)
-        
-        # Generate blur map
-        blur_image = generate_blur_map(processed_image, config, logger)  # Use preprocessed image
-        
-        # Save blur map
-        logger.info("Saving blur map...")
-        blur_image.save(config.blur_output)
         
         # Generate final image
         logger.info("=== Generating final image ===")

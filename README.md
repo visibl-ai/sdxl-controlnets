@@ -1,6 +1,6 @@
 # SDXL ControlNet Pipeline
 
-This repository provides a script for running Stable Diffusion XL with multiple ControlNets (Canny, Depth) using the Hugging Face `diffusers` library.
+This repository provides a script for running Stable Diffusion XL with multiple ControlNets (Canny, Depth) using the Hugging Face `diffusers` library. Uses a refiner at the end to tidy things up.
 
 ## Usage
 
@@ -52,7 +52,6 @@ The following environment variables can be set to control the pipeline behavior:
 - `LOCAL_FILES_ONLY`: Set to "true" (default) to only use locally cached models, "false" to allow downloading
 - `DEPTH_MODEL_TYPE`: Choose depth estimation model - "dpt" or "depth_anything_v2" (default)
 - `DEPTH_ANYTHING_MODEL`: Specify Depth Anything model when using depth_anything_v2 (default: "depth-anything/Depth-Anything-V2-Base-hf")
-- `LOAD_EACH_MODEL`: Set to "true" (default) to load models individually, "false" to load all at once
 
 Example:
 ```bash
@@ -107,8 +106,6 @@ All parameters are optional. If not specified, the default value from the Config
 
 ### System Parameters
 - `device`: Torch device (default: "cuda")
-- `torch_dtype`: Torch data type ("bfloat16", "float16", "float32")
-- `use_4bit_quantization`: Enable 4-bit quantization (default: false)
 - `cache_dir`: Cache directory for models
 - `local_files_only`: Only use local files (default: true)
 - `offline_mode`: Run in offline mode (default: true)

@@ -122,34 +122,3 @@ def generate_canny_map(image, config, logger):
     
     logger.info(f"Canny preprocessing completed in {time.time() - preprocess_start:.2f}s")
     return edges_rgb
-
-
-def generate_blur_map(image, config, logger):
-    """Generate blur map from input image"""
-    logger.info("Generating blur map...")
-    blur_start = time.time()
-    
-    # Convert PIL image to tensor for processing
-    image_tensor = F.to_tensor(image)
-    
-    # Create gaussian blur transform with explicit kernel size
-    kernel_size = config.blur_kernel_size
-    # Use fixed sigma based on kernel size to ensure consistent blur
-    sigma = 0.3 * ((kernel_size - 1) * 0.5 - 1) + 0.8
-    gaussian_blur = transforms.GaussianBlur(kernel_size=kernel_size, sigma=sigma)
-    
-    # Apply blur to the tensor
-    blurred_tensor = gaussian_blur(image_tensor)
-    
-    # Convert back to PIL Image
-    blurred_image = F.to_pil_image(blurred_tensor)
-    
-    # Log blur image dimensions and debug info
-    blur_width, blur_height = blurred_image.size
-    logger.info(f"  Blur map dimensions: {blur_width}x{blur_height}")
-    logger.info(f"  Blur kernel size: {kernel_size}")
-    logger.info(f"  Input image size: {image.size}")
-    logger.info(f"  Blur transform: {gaussian_blur}")
-    
-    logger.info(f"Blur preprocessing completed in {time.time() - blur_start:.2f}s")
-    return blurred_image

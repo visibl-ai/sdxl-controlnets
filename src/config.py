@@ -13,7 +13,6 @@ class Config:
         self.refiner_repo = "stabilityai/stable-diffusion-xl-refiner-1.0"
         self.depth_controlnet_path = "diffusers/controlnet-depth-sdxl-1.0"
         self.canny_controlnet_path = "diffusers/controlnet-canny-sdxl-1.0"
-        #self.blur_controlnet_path = ""
         
         # Depth model configuration
         self.depth_model_type = os.environ.get("DEPTH_MODEL_TYPE", "depth_anything_v2")  # Options: "dpt" or "depth_anything_v2"
@@ -27,14 +26,12 @@ class Config:
         env_val = os.environ.get("LOCAL_FILES_ONLY", "true").lower()
         self.local_files_only = env_val in ("true", "1", "True") # false by default
         self.offline_mode = True
-        self.load_each_model = os.environ.get("LOAD_EACH_MODEL", "true").lower() in ("true", "1", "True")
         
         # Input/Output paths
         self.input_image = "./inputs/square.png"
         self.output_dir = "outputs"
         self.depth_output = "outputs/diffusers_depth_control.png"
         self.canny_output = "outputs/diffusers_canny_control.png"
-        self.blur_output = "outputs/diffusers_blur_control.png"
         self.final_output = "outputs/diffusers_output.png"
         self.refined_output = "outputs/diffusers_refined_output.png"
         # Generation parameters
@@ -53,7 +50,6 @@ class Config:
         self.canny_controlnet_conditioning_scale = 0.5
         self.depth_control_guidance_start = 0.0
         self.canny_control_guidance_start = 0.0
-        self.blur_control_guidance_start = 0.0
         self.depth_control_guidance_end = 1.0
         self.canny_control_guidance_end = 1.0
         self.seed = None  # Set to specific value for reproducibility
@@ -61,9 +57,6 @@ class Config:
         # Canny edge detection parameters
         self.canny_low_threshold = 50
         self.canny_high_threshold = 200
-        
-        # Blur parameters
-        self.blur_kernel_size = 101  # Must be odd number
         
         # Quantization (optional)
         self.use_4bit_quantization = False
