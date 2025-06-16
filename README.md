@@ -1,44 +1,12 @@
-# SD3.5 ControlNet Pipeline
+# SDXL ControlNet Pipeline
 
-This repository provides a script for running Stable Diffusion 3.5 with multiple ControlNets (Canny, Depth, Blur) using the Hugging Face `diffusers` library. This is an attempt at using the SD3.5 ControlNets and includes custom workarounds to address specific requirements that may not yet be handled by the standard library.
-
-## Custom Implementation Details
-
-This implementation uses a custom pipeline class `SD3ControlNetPipelineWithCannyFix` which inherits from `diffusers.StableDiffusion3ControlNetPipeline` to enable correct functionality with SD3.5 ControlNets.
-
-### Canny ControlNet Preprocessing
-
-The standard `diffusers` pipeline does not apply the special preprocessing required for the SD3.5 Canny ControlNet. The custom pipeline overrides the image preparation step to apply the correct transformation to the Canny control image latents. This is crucial for getting correct results from the Canny ControlNet.
-
-### Multi-ControlNet Order
-
-The script is designed to use multiple ControlNets simultaneously (Canny, Depth, and Blur). It uses `diffusers.SD3MultiControlNetModel` and assumes a specific order for the control images and conditioning scales:
-
-1.  Canny
-2.  Depth
-3.  Blur
-
-When providing control images or setting parameters like `controlnet_conditioning_scale`, they must be in this order.
-
-## Model Preparation
-
-The ControlNet models for SD3.5 are often distributed as single `.safetensors` files. These must be converted into the `diffusers` format before they can be used with this script.
-
-You can use the conversion script provided in the `diffusers` library. Here is an example command:
-
-```bash
-python <path_to_diffusers>/scripts/convert_sd3_controlnet_to_diffusers.py \
-    --checkpoint_path "/path/to/your/sd3.5_large_controlnet_depth.safetensors" \
-    --output_path "/path/to/your/sd3.5_large_controlnet_depth_diffusers"
-```
-
-Repeat this process for each ControlNet model (Canny, Depth, Blur).
+This repository provides a script for running Stable Diffusion XL with multiple ControlNets (Canny, Depth) using the Hugging Face `diffusers` library.
 
 ## Usage
 
 ### Interactive Mode (no arguments)
 ```bash
-python sd3.5_diffusers_control.py
+python sdxl_diffusers_control.py
 ```
 Runs in interactive mode where you can:
 - Generate images using default configuration
@@ -50,7 +18,7 @@ The script will monitor `config.json` and reload it for each generation, allowin
 
 ### Batch Configuration Mode
 ```bash
-python sd3.5_diffusers_control.py --config batch_config.json
+python sdxl_diffusers_control.py --config batch_config.json
 ```
 Processes multiple configurations from a JSON file. The JSON file must contain an array of configuration objects.
 
@@ -91,7 +59,7 @@ Example:
 export DEPTH_MODEL_TYPE="depth_anything_v2"
 export DEPTH_ANYTHING_MODEL="depth-anything/Depth-Anything-V2-Large-hf"
 export LOCAL_FILES_ONLY="false"
-python sd3.5_diffusers_control.py
+python sdxl_diffusers_control.py
 ```
 
 ## Available Configuration Parameters
@@ -99,10 +67,9 @@ python sd3.5_diffusers_control.py
 All parameters are optional. If not specified, the default value from the Config class will be used.
 
 ### Model Paths
-- `model_repo`: HuggingFace model repository (default: "stabilityai/stable-diffusion-3.5-large")
+- `model_repo`: HuggingFace model repository
 - `depth_controlnet_path`: Path to depth controlnet model (diffusers format)
 - `canny_controlnet_path`: Path to canny controlnet model (diffusers format)
-- `blur_controlnet_path`: Path to blur controlnet model (diffusers format)
 - `depth_model`: Depth estimation model (default: "Intel/dpt-hybrid-midas")
 
 ### Input/Output
@@ -110,7 +77,6 @@ All parameters are optional. If not specified, the default value from the Config
 - `output_dir`: Output directory
 - `depth_output`: Path for depth control image
 - `canny_output`: Path for canny control image
-- `blur_output`: Path for blur control image
 - `final_output`: Path for final generated image
 
 ### Generation Parameters
@@ -130,18 +96,14 @@ All parameters are optional. If not specified, the default value from the Config
 ### ControlNet Parameters
 - `depth_controlnet_conditioning_scale`: Depth control strength (0.0-1.0)
 - `canny_controlnet_conditioning_scale`: Canny control strength (0.0-1.0)
-- `blur_controlnet_conditioning_scale`: Blur control strength (0.0-1.0)
 - `depth_control_guidance_start`: When to start depth control (0.0-1.0)
 - `canny_control_guidance_start`: When to start canny control (0.0-1.0)
-- `blur_control_guidance_start`: When to start blur control (0.0-1.0)
 - `depth_control_guidance_end`: When to end depth control (0.0-1.0)
 - `canny_control_guidance_end`: When to end canny control (0.0-1.0)
-- `blur_control_guidance_end`: When to end blur control (0.0-1.0)
 
 ### Preprocessing Parameters
 - `canny_low_threshold`: Lower threshold for Canny edge detection (default: 50)
 - `canny_high_threshold`: Upper threshold for Canny edge detection (default: 200)
-- `blur_kernel_size`: Gaussian blur kernel size, must be odd (default: 51)
 
 ### System Parameters
 - `device`: Torch device (default: "cuda")
@@ -181,8 +143,6 @@ All parameters are optional. If not specified, the default value from the Config
         "output_dir": "outputs/styles",
         "final_output": "outputs/styles/watercolor.png",
         "canny_controlnet_conditioning_scale": 0.5,
-        "blur_controlnet_conditioning_scale": 0.2,
-        "blur_kernel_size": 31,
         "num_inference_steps": 40,
         "seed": 42
     }
@@ -194,7 +154,7 @@ All parameters are optional. If not specified, the default value from the Config
 1. The pipeline and models are loaded once at startup
 2. For each configuration in the array:
    - Load the input image
-   - Generate depth, canny, and blur control maps
+   - Generate depth, canny control maps
    - Generate the final image using the control maps
    - Save all outputs to specified paths
 3. Report success/failure statistics at the end

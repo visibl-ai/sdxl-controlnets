@@ -9,13 +9,10 @@ class Config:
     """Configuration for SD3.5 ControlNet pipeline"""
     def __init__(self, json_config=None):
         # Model paths
-        self.model_repo = "stabilityai/stable-diffusion-3.5-large"
-        ## need to convert to diffusers format. 
-        ## https://github.com/huggingface/diffusers/blob/6c7fad7ec8b2417c92326804e1751658874fd43b/scripts/convert_sd3_controlnet_to_diffusers.py#L2
-        ## python scripts/convert_sd3_controlnet_to_diffusers.py --checkpoint_path "../sd3.5/models/sd3.5_large_controlnet_depth.safetensors" --output_path ../sd3.5/models/sd3.5_large_controlnet_depth_diffusers
-        self.depth_controlnet_path = "moeadham/stable-diffusion-3.5-large-controlnet-depth-diffusers"
-        self.canny_controlnet_path = "moeadham/stable-diffusion-3.5-large-controlnet-canny-diffusers"
-        self.blur_controlnet_path = "moeadham/stable-diffusion-3.5-large-controlnet-blur-diffusers"
+        self.model_repo = "stabilityai/stable-diffusion-xl-base-1.0"
+        self.depth_controlnet_path = "diffusers/controlnet-depth-sdxl-1.0"
+        self.canny_controlnet_path = "diffusers/controlnet-canny-sdxl-1.0"
+        #self.blur_controlnet_path = ""
         
         # Depth model configuration
         self.depth_model_type = os.environ.get("DEPTH_MODEL_TYPE", "depth_anything_v2")  # Options: "dpt" or "depth_anything_v2"
@@ -49,15 +46,14 @@ class Config:
         self.width = None   # Will be set during preprocessing
         self.num_inference_steps = 60  # SD3.5 ControlNet recommended
         self.guidance_scale = 3.5      # SD3.5 ControlNet recommended (lower than default)
-        self.depth_controlnet_conditioning_scale = 0.7
-        self.canny_controlnet_conditioning_scale = 0.7
-        self.blur_controlnet_conditioning_scale = 0.7
+        self.original_strength = 0.8
+        self.depth_controlnet_conditioning_scale = 0.5
+        self.canny_controlnet_conditioning_scale = 0.5
         self.depth_control_guidance_start = 0.0
         self.canny_control_guidance_start = 0.0
         self.blur_control_guidance_start = 0.0
         self.depth_control_guidance_end = 1.0
         self.canny_control_guidance_end = 1.0
-        self.blur_control_guidance_end = 1.0
         self.seed = None  # Set to specific value for reproducibility
         
         # Canny edge detection parameters

@@ -6,7 +6,7 @@ from .generate_control_images import generate_depth_map, generate_canny_map, gen
 from .image_preprocessing import pre_process_input
 
 
-def generate_image(pipeline, depth_image, canny_image, blur_image, config, logger):
+def generate_image(pipeline, processed_image, depth_image, canny_image, config, logger):
     """Generate image using the pipeline"""
     logger.info("Starting image generation with multi-controlnet...")
     start_time = time.time()
@@ -25,11 +25,13 @@ def generate_image(pipeline, depth_image, canny_image, blur_image, config, logge
     result = pipeline(
         config.prompt,
         negative_prompt=config.negative_prompt,
-        control_image=[canny_image, depth_image, blur_image],
+        image=processed_image,
+        strength=config.original_strength,
+        control_image=[canny_image, depth_image,],#, blur_image],
         controlnet_conditioning_scale=[
             config.canny_controlnet_conditioning_scale, 
             config.depth_controlnet_conditioning_scale,
-            config.blur_controlnet_conditioning_scale
+            #config.blur_controlnet_conditioning_scale
         ],
         generator=generator,
         height=config.height, 
@@ -39,12 +41,12 @@ def generate_image(pipeline, depth_image, canny_image, blur_image, config, logge
         control_guidance_start=[
             config.canny_control_guidance_start, 
             config.depth_control_guidance_start,
-            config.blur_control_guidance_start
+            #config.blur_control_guidance_start
         ],
         control_guidance_end=[
             config.canny_control_guidance_end, 
             config.depth_control_guidance_end,
-            config.blur_control_guidance_end
+            #config.blur_control_guidance_end
         ],
     )
     
@@ -122,7 +124,7 @@ def process_single_generation(pipeline, depth_estimator, feature_extractor, conf
         # Generate final image
         logger.info("=== Generating final image ===")
         # The custom pipeline will handle the special preprocessing internally
-        generated_image = generate_image(pipeline, depth_image, canny_image, blur_image, config, logger)
+        generated_image = generate_image(pipeline, processed_image, depth_image, canny_image, config, logger)
         
         # Save generated image
         logger.info("Saving generated image...")

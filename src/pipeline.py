@@ -1,23 +1,20 @@
 import time
 import logging
 from diffusers import (
-    BitsAndBytesConfig, 
-    SD3Transformer2DModel, 
     AutoencoderKL, 
-    FlowMatchEulerDiscreteScheduler
+    StableDiffusionXLControlNetImg2ImgPipeline,
 )
-from diffusers.models import SD3ControlNetModel, SD3MultiControlNetModel
+from diffusers.models import ControlNetModel, MultiControlNetModel
 from transformers import (
-    CLIPTokenizer, 
-    T5TokenizerFast,
+    #CLIPTokenizer, 
+    #T5TokenizerFast,
     DPTImageProcessor, 
     DPTForDepthEstimation,
-    CLIPTextModelWithProjection, 
-    T5EncoderModel,
+    #CLIPTextModelWithProjection, 
+    #T5EncoderModel,
     AutoModelForDepthEstimation,
     AutoImageProcessor,
 )
-from .SD35ControlNetPipelineWithCannyFix import SD35ControlNetPipelineWithCannyFix
 
 
 def load_depth_processor(config, logger):
@@ -82,7 +79,7 @@ def load_pipeline(config, logger):
     
     # Load ControlNet
     logger.info("Loading Canny ControlNet model...")
-    canny_controlnet = SD3ControlNetModel.from_pretrained(
+    canny_controlnet = ControlNetModel.from_pretrained(
         config.canny_controlnet_path, 
         torch_dtype=config.torch_dtype,
         local_files_only=config.local_files_only,
@@ -91,150 +88,40 @@ def load_pipeline(config, logger):
     # later on and snapshot memory.
 
     logger.info("Loading Depth ControlNet model...")
-    depth_controlnet = SD3ControlNetModel.from_pretrained(
+    depth_controlnet = ControlNetModel.from_pretrained(
         config.depth_controlnet_path, 
         torch_dtype=config.torch_dtype,
         local_files_only=config.local_files_only,
     ).to(config.device)
 
-    logger.info("Loading Blur ControlNet model...")
-    blur_controlnet = SD3ControlNetModel.from_pretrained(
-        config.blur_controlnet_path, 
+    # logger.info("Loading Blur ControlNet model...")
+    # blur_controlnet = SD3ControlNetModel.from_pretrained(
+    #     config.blur_controlnet_path, 
+    #     torch_dtype=config.torch_dtype,
+    #     local_files_only=config.local_files_only,
+    # ).to(config.device)
+    
+    multi_controlnet = MultiControlNetModel([canny_controlnet, depth_controlnet])
+    
+    logger.info("Loading VAE...")
+    vae = AutoencoderKL.from_pretrained(
+        "madebyollin/sdxl-vae-fp16-fix",
         torch_dtype=config.torch_dtype,
+        cache_dir=config.cache_dir,
         local_files_only=config.local_files_only,
     ).to(config.device)
-    
-    multi_controlnet = SD3MultiControlNetModel([canny_controlnet, depth_controlnet, blur_controlnet])
-    
-    if (config.load_each_model):
-        logger.info("Loading each model individually...")
-        # Load VAE
-        logger.info("Loading VAE...")
-        vae = AutoencoderKL.from_pretrained(
-            config.model_repo,
-            subfolder="vae",
-            torch_dtype=config.torch_dtype,
-            cache_dir=config.cache_dir,
-            local_files_only=config.local_files_only,
-        ).to(config.device)
-        
-        # Load Transformer (with optional 4-bit quantization)
-        logger.info("Loading Transformer...")
-        if config.use_4bit_quantization:
-            nf4_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=config.torch_dtype
-            )
-            transformer = SD3Transformer2DModel.from_pretrained(
-                config.model_repo,
-                subfolder="transformer",
-                quantization_config=nf4_config,
-                torch_dtype=config.torch_dtype,
-                cache_dir=config.cache_dir,
-                local_files_only=config.local_files_only,
-            )
-        else:
-            transformer = SD3Transformer2DModel.from_pretrained(
-                config.model_repo,
-                subfolder="transformer",
-                torch_dtype=config.torch_dtype,
-                cache_dir=config.cache_dir,
-                local_files_only=config.local_files_only,
-            ).to(config.device)
-        
-        # Load text encoders
-        logger.info("Loading text encoders...")
-        text_encoder = CLIPTextModelWithProjection.from_pretrained(
-            config.model_repo,
-            subfolder="text_encoder",
-            torch_dtype=config.torch_dtype,
-            cache_dir=config.cache_dir,
-            local_files_only=config.local_files_only,
-        ).to(config.device)
-        
-        text_encoder_2 = CLIPTextModelWithProjection.from_pretrained(
-            config.model_repo,
-            subfolder="text_encoder_2",
-            torch_dtype=config.torch_dtype,
-            cache_dir=config.cache_dir,
-            local_files_only=config.local_files_only,
-        ).to(config.device)
-        
-        text_encoder_3 = T5EncoderModel.from_pretrained(
-            config.model_repo,
-            subfolder="text_encoder_3",
-            torch_dtype=config.torch_dtype,
-            cache_dir=config.cache_dir,
-            local_files_only=config.local_files_only,
-        ).to(config.device)
-        
-        # Load tokenizers
-        logger.info("Loading tokenizers...")
-        tokenizer = CLIPTokenizer.from_pretrained(
-            config.model_repo,
-            subfolder="tokenizer",
-            cache_dir=config.cache_dir,
-            local_files_only=config.local_files_only,
-        )
-        
-        tokenizer_2 = CLIPTokenizer.from_pretrained(
-            config.model_repo,
-            subfolder="tokenizer_2",
-            cache_dir=config.cache_dir,
-            local_files_only=config.local_files_only,
-        )
-        
-        tokenizer_3 = T5TokenizerFast.from_pretrained(
-            config.model_repo,
-            subfolder="tokenizer_3",
-            cache_dir=config.cache_dir,
-            local_files_only=config.local_files_only,
-        )
-        
-        # Load scheduler
-        logger.info("Loading scheduler...")
-        scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(
-            config.model_repo,
-            subfolder="scheduler",
-            cache_dir=config.cache_dir,
-            local_files_only=config.local_files_only,
-        )
-        
-        # Assemble pipeline with custom canny fix
-        logger.info("Assembling Stable Diffusion pipeline with canny fix...")
-        pipe = SD35ControlNetPipelineWithCannyFix.from_pretrained(
-            config.model_repo, 
-            controlnet=multi_controlnet, 
-            torch_dtype=config.torch_dtype,
-            cache_dir=config.cache_dir,
-            local_files_only=config.local_files_only,
-            vae=vae,
-            text_encoder=text_encoder,
-            text_encoder_2=text_encoder_2,
-            text_encoder_3=text_encoder_3,
-            tokenizer=tokenizer,
-            tokenizer_2=tokenizer_2,
-            tokenizer_3=tokenizer_3,
-            transformer=transformer,
-            scheduler=scheduler,
-        )
-        
-        pipe.to(config.device)
-        
-        logger.info(f"Pipeline loading took {time.time() - start_time:.4f} seconds")
-        return pipe
-    else:
-        # Assemble pipeline with custom canny fix
-        logger.info("Assembling Stable Diffusion pipeline with canny fix...")
-        pipe = SD35ControlNetPipelineWithCannyFix.from_pretrained(
-            config.model_repo, 
-            controlnet=multi_controlnet, 
-            torch_dtype=config.torch_dtype,
-            cache_dir=config.cache_dir,
-            local_files_only=config.local_files_only,
-        )
-        # MODAL - Maybe you can snapshot memory here?
-        pipe.to(config.device) 
-        logger.info(f"Pipeline loading took {time.time() - start_time:.4f} seconds")
-        return pipe
+    # Assemble pipeline with custom canny fix
+    logger.info("Assembling Stable Diffusion pipeline with canny fix...")
+    pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
+        config.model_repo, 
+        controlnet=multi_controlnet, 
+        torch_dtype=config.torch_dtype,
+        cache_dir=config.cache_dir,
+        local_files_only=config.local_files_only,
+        vae=vae,
+        use_safetensors=True,
+    )
+    # MODAL - Maybe you can snapshot memory here?
+    pipe.to(config.device) 
+    logger.info(f"Pipeline loading took {time.time() - start_time:.4f} seconds")
+    return pipe

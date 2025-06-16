@@ -11,4 +11,4 @@ export HUGGINGFACE_HUB_CACHE=hub
 export TRANSFORMERS_CACHE=transformers
 export HF_DATASETS_CACHE=datasets
 source .venv/bin/activate
-python sd3.5_diffusers_control.py
+python sdxl_diffusers_control.py
