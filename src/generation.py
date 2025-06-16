@@ -6,7 +6,7 @@ from .generate_control_images import generate_depth_map, generate_canny_map, gen
 from .image_preprocessing import pre_process_input
 
 
-def generate_image(pipeline, processed_image, depth_image, canny_image, config, logger):
+def generate_image(pipeline, refiner, processed_image, depth_image, canny_image, config, logger):
     """Generate image using the pipeline"""
     logger.info("Starting image generation with multi-controlnet...")
     start_time = time.time()
@@ -52,11 +52,21 @@ def generate_image(pipeline, processed_image, depth_image, canny_image, config, 
     
     image = result.images[0]
     logger.info(f"Image generation took {time.time() - start_time:.4f} seconds")
+
+    logger.info("Starting image refinement...")
+    refine_start_time = time.time()
+    refined_image = refiner(
+        config.prompt,
+        negative_prompt=config.negative_prompt,
+        num_inference_steps=config.refiner_num_inference_steps,
+        image=image,
+    ).images[0]
+    logger.info(f"Image refinement took {time.time() - refine_start_time:.4f} seconds")
     
-    return image
+    return image, refined_image
 
 
-def process_single_generation(pipeline, depth_estimator, feature_extractor, config, logger):
+def process_single_generation(pipeline, refiner, depth_estimator, feature_extractor, config, logger):
     """Process a single generation with the given configuration"""
     generation_start = time.time()
     # Check local_files_only setting
@@ -124,11 +134,14 @@ def process_single_generation(pipeline, depth_estimator, feature_extractor, conf
         # Generate final image
         logger.info("=== Generating final image ===")
         # The custom pipeline will handle the special preprocessing internally
-        generated_image = generate_image(pipeline, processed_image, depth_image, canny_image, config, logger)
+        generated_image, refined_image = generate_image(pipeline, refiner, processed_image, depth_image, canny_image, config, logger)
         
         # Save generated image
         logger.info("Saving generated image...")
         generated_image.save(config.final_output)
+        logger.info("Saving refined image...")
+        refined_image.save(config.refined_output)
+
         
         logger.info(f"Generation completed in {time.time() - generation_start:.4f} seconds")
         logger.info(f"Output saved to: {config.final_output}")

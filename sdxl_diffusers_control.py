@@ -64,7 +64,7 @@ def setup_environment(config):
     return logger
 
 
-def interactive_mode(pipeline, depth_estimator, feature_extractor, logger):
+def interactive_mode(pipeline, refiner, depth_estimator, feature_extractor, logger):
     """Run in interactive mode with config.json monitoring"""
     config_path = "config.json"
     
@@ -90,7 +90,7 @@ def interactive_mode(pipeline, depth_estimator, feature_extractor, logger):
             
             # Process generation
             logger.info("\n=== Starting generation ===")
-            success = process_single_generation(pipeline, depth_estimator, feature_extractor, config, logger)
+            success = process_single_generation(pipeline, refiner, depth_estimator, feature_extractor, config, logger)
             
             if success:
                 logger.info("\nGeneration complete!")
@@ -125,7 +125,7 @@ def interactive_mode(pipeline, depth_estimator, feature_extractor, logger):
 def main():
     """Main execution function"""
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='SD3.5 ControlNet Pipeline')
+    parser = argparse.ArgumentParser(description='SDXL ControlNet Pipeline')
     parser.add_argument('--config', type=str, help='Path to JSON configuration file containing array of configurations')
     args = parser.parse_args()
     
@@ -138,7 +138,7 @@ def main():
     try:
         # Load pipeline and preprocessing models once (before processing any configs)
         logger.info("=== Loading pipeline and preprocessing models ===")
-        pipeline = load_pipeline(base_config, logger)
+        pipeline, refiner = load_pipeline(base_config, logger)
         depth_estimator, feature_extractor = load_depth_processor(base_config, logger)
         logger.info("All models loaded successfully")
         
@@ -173,7 +173,7 @@ def main():
                         item_config = Config(config_dict)
                         
                         # Process this configuration
-                        if process_single_generation(pipeline, depth_estimator, feature_extractor, item_config, logger):
+                        if process_single_generation(pipeline, refiner, depth_estimator, feature_extractor, item_config, logger):
                             successful += 1
                         else:
                             failed += 1
@@ -209,7 +209,7 @@ def main():
             }, indent=2))
             
             # Enter interactive mode
-            interactive_mode(pipeline, depth_estimator, feature_extractor, logger)
+            interactive_mode(pipeline, refiner, depth_estimator, feature_extractor, logger)
         
         # Summary
         total_time = time.time() - total_import_start

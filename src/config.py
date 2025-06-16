@@ -10,6 +10,7 @@ class Config:
     def __init__(self, json_config=None):
         # Model paths
         self.model_repo = "stabilityai/stable-diffusion-xl-base-1.0"
+        self.refiner_repo = "stabilityai/stable-diffusion-xl-refiner-1.0"
         self.depth_controlnet_path = "diffusers/controlnet-depth-sdxl-1.0"
         self.canny_controlnet_path = "diffusers/controlnet-canny-sdxl-1.0"
         #self.blur_controlnet_path = ""
@@ -35,7 +36,7 @@ class Config:
         self.canny_output = "outputs/diffusers_canny_control.png"
         self.blur_output = "outputs/diffusers_blur_control.png"
         self.final_output = "outputs/diffusers_output.png"
-        
+        self.refined_output = "outputs/diffusers_refined_output.png"
         # Generation parameters
         self.prompt = "studio ghibli style"
         self.negative_prompt = "low quality, incomplete, blurred, deformed"
@@ -44,8 +45,9 @@ class Config:
         # Height and width will be set dynamically based on aspect ratio
         self.height = None  # Will be set during preprocessing
         self.width = None   # Will be set during preprocessing
-        self.num_inference_steps = 60  # SD3.5 ControlNet recommended
-        self.guidance_scale = 3.5      # SD3.5 ControlNet recommended (lower than default)
+        self.num_inference_steps = 50  # SDXL ControlNet recommended
+        self.refiner_num_inference_steps = 20
+        self.guidance_scale = 7.5      # SDXL ControlNet recommended (lower than default)
         self.original_strength = 0.8
         self.depth_controlnet_conditioning_scale = 0.5
         self.canny_controlnet_conditioning_scale = 0.5

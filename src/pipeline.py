@@ -3,6 +3,7 @@ import logging
 from diffusers import (
     AutoencoderKL, 
     StableDiffusionXLControlNetImg2ImgPipeline,
+    StableDiffusionXLImg2ImgPipeline
 )
 from diffusers.models import ControlNetModel, MultiControlNetModel
 from transformers import (
@@ -121,7 +122,17 @@ def load_pipeline(config, logger):
         vae=vae,
         use_safetensors=True,
     )
+
+    refiner = StableDiffusionXLImg2ImgPipeline.from_pretrained(
+        config.refiner_repo,
+        torch_dtype=config.torch_dtype,
+        cache_dir=config.cache_dir,
+        local_files_only=config.local_files_only,
+        vae=vae,
+        use_safetensors=True,
+    )
+
     # MODAL - Maybe you can snapshot memory here?
     pipe.to(config.device) 
     logger.info(f"Pipeline loading took {time.time() - start_time:.4f} seconds")
-    return pipe
+    return pipe, refiner
