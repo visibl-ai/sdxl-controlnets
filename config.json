@@ -7,6 +7,7 @@
   "canny_output": "outputs/diffusers_canny_control.png",
   "final_output": "outputs/diffusers_output.png",
   "num_inference_steps": 60,
+  "refiner_num_inference_steps": 50,
   "guidance_scale": 7.5,
   "depth_controlnet_conditioning_scale": 0.2,
   "canny_controlnet_conditioning_scale": 0.2,

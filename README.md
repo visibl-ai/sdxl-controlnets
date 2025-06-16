@@ -1,6 +1,6 @@
 # SDXL ControlNet Pipeline
 
-This repository provides a script for running Stable Diffusion XL with multiple ControlNets (Canny, Depth) using the Hugging Face `diffusers` library. Uses a refiner at the end to tidy things up.
+This repository provides a script for running Stable Diffusion XL with multiple ControlNets (Canny, Depth) using the Hugging Face `diffusers` library. Uses a refiner at the end to tidy things up. Not currently using denoising_start/denoising_end with latents. Could be an improvement, but it is not clear if that is possible with a controlnet pipeline.
 
 ## Usage
 
@@ -158,11 +158,11 @@ All parameters are optional. If not specified, the default value from the Config
 
 ## Memory requirements: 
 
-Depends on your model. Should just fit on an L40 or A40. (48GB mem needed)
+Depends on your model. Should just fit on an L4 or A10G. (24GB mem needed)
 ```
 depth-anything/Depth-Anything-V2-Base-hf
-|   0  NVIDIA A40                     On  |   00000000:53:00.0 Off |                    0 |
-|  0%   54C    P0            302W /  300W |   45243MiB /  46068MiB |    100%      Default |
+|   0  NVIDIA RTX A5000               On  |   00000000:D1:00.0 Off |                  Off |
+| 30%   30C    P8             23W /  230W |   22757MiB /  24564MiB |      0%      Default |
 ```
 
 `depth-anything/Depth-Anything-V2-Large-hf` gives a better quality depth but is too big to fit on 48gb with everything else. 
