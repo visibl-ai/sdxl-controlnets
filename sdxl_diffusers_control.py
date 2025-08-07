@@ -3,7 +3,6 @@ import time
 import os
 import json
 import argparse
-import sys
 
 # Log start of imports
 print("Starting imports...")
@@ -64,6 +63,15 @@ def setup_environment(config):
     return logger
 
 
+def load_models(config, logger):
+    """Load all required models: pipeline, refiner, and depth processor"""
+    logger.info("=== Loading pipeline and preprocessing models ===")
+    pipeline, refiner = load_pipeline(config, logger)
+    depth_estimator, feature_extractor = load_depth_processor(config, logger)
+    logger.info("All models loaded successfully")
+    return pipeline, refiner, depth_estimator, feature_extractor
+
+
 def interactive_mode(pipeline, refiner, depth_estimator, feature_extractor, logger):
     """Run in interactive mode with config.json monitoring"""
     config_path = "config.json"
@@ -122,8 +130,78 @@ def interactive_mode(pipeline, refiner, depth_estimator, feature_extractor, logg
                 break
 
 
+def run_inference(args, pipeline, refiner, depth_estimator, feature_extractor, logger):
+    """Run inference in either batch or interactive mode"""
+    if args.config:
+        # Load configurations from JSON file
+        logger.info(f"Loading configurations from: {args.config}")
+        
+        try:
+            with open(args.config, 'r') as f:
+                configs = json.load(f)
+            
+            if not isinstance(configs, list):
+                raise ValueError("Configuration file must contain a JSON array of configurations")
+            
+            if len(configs) == 0:
+                raise ValueError("Configuration array is empty")
+            
+            logger.info(f"Found {len(configs)} configurations to process")
+            
+            # Process each configuration
+            successful = 0
+            failed = 0
+            
+            for i, config_dict in enumerate(configs):
+                logger.info(f"\n{'='*60}")
+                logger.info(f"Processing configuration {i+1}/{len(configs)}")
+                
+                try:
+                    # Create a new config with overrides
+                    item_config = Config(config_dict)
+                    
+                    # Process this configuration
+                    if process_single_generation(pipeline, refiner, depth_estimator, feature_extractor, item_config, logger):
+                        successful += 1
+                    else:
+                        failed += 1
+                except Exception as e:
+                    logger.error(f"Error processing configuration {i+1}: {str(e)}")
+                    logger.error(f"Skipping to next configuration...")
+                    failed += 1
+                    continue
+            
+            logger.info(f"\n{'='*60}")
+            logger.info(f"Batch processing complete: {successful} successful, {failed} failed")
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing JSON configuration file: {str(e)}")
+            raise
+        except FileNotFoundError:
+            logger.error(f"Configuration file not found: {args.config}")
+            raise
+        except Exception as e:
+            logger.error(f"Error loading configuration file: {str(e)}")
+            raise
+        
+    else:
+        # No config file provided - run in interactive mode
+        logger.info("No batch configuration file provided, entering interactive mode")
+        logger.info("You can create/modify 'config.json' to override default settings")
+        logger.info("\nExample config.json:")
+        logger.info(json.dumps({
+            "prompt": "your prompt here",
+            "input_image": "./inputs/your_image.png",
+            "guidance_scale": 3.5,
+            "num_inference_steps": 60
+        }, indent=2))
+        
+        # Enter interactive mode
+        interactive_mode(pipeline, refiner, depth_estimator, feature_extractor, logger)
+
+
 def main():
-    """Main execution function"""
+    """Main execution function - orchestrates setup, model loading, and inference"""
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='SDXL ControlNet Pipeline')
     parser.add_argument('--config', type=str, help='Path to JSON configuration file containing array of configurations')
@@ -136,80 +214,11 @@ def main():
     logger = setup_environment(base_config)
     
     try:
-        # Load pipeline and preprocessing models once (before processing any configs)
-        logger.info("=== Loading pipeline and preprocessing models ===")
-        pipeline, refiner = load_pipeline(base_config, logger)
-        depth_estimator, feature_extractor = load_depth_processor(base_config, logger)
-        logger.info("All models loaded successfully")
+        # Load all models
+        pipeline, refiner, depth_estimator, feature_extractor = load_models(base_config, logger)
         
-        # MODAL - inference starts here. 
-
-        if args.config:
-            # Load configurations from JSON file
-            logger.info(f"Loading configurations from: {args.config}")
-            
-            try:
-                with open(args.config, 'r') as f:
-                    configs = json.load(f)
-                
-                if not isinstance(configs, list):
-                    raise ValueError("Configuration file must contain a JSON array of configurations")
-                
-                if len(configs) == 0:
-                    raise ValueError("Configuration array is empty")
-                
-                logger.info(f"Found {len(configs)} configurations to process")
-                
-                # Process each configuration
-                successful = 0
-                failed = 0
-                
-                for i, config_dict in enumerate(configs):
-                    logger.info(f"\n{'='*60}")
-                    logger.info(f"Processing configuration {i+1}/{len(configs)}")
-                    
-                    try:
-                        # Create a new config with overrides
-                        item_config = Config(config_dict)
-                        
-                        # Process this configuration
-                        if process_single_generation(pipeline, refiner, depth_estimator, feature_extractor, item_config, logger):
-                            successful += 1
-                        else:
-                            failed += 1
-                    except Exception as e:
-                        logger.error(f"Error processing configuration {i+1}: {str(e)}")
-                        logger.error(f"Skipping to next configuration...")
-                        failed += 1
-                        continue
-                
-                logger.info(f"\n{'='*60}")
-                logger.info(f"Batch processing complete: {successful} successful, {failed} failed")
-                
-            except json.JSONDecodeError as e:
-                logger.error(f"Error parsing JSON configuration file: {str(e)}")
-                raise
-            except FileNotFoundError:
-                logger.error(f"Configuration file not found: {args.config}")
-                raise
-            except Exception as e:
-                logger.error(f"Error loading configuration file: {str(e)}")
-                raise
-            
-        else:
-            # No config file provided - run in interactive mode
-            logger.info("No batch configuration file provided, entering interactive mode")
-            logger.info("You can create/modify 'config.json' to override default settings")
-            logger.info("\nExample config.json:")
-            logger.info(json.dumps({
-                "prompt": "your prompt here",
-                "input_image": "./inputs/your_image.png",
-                "guidance_scale": 3.5,
-                "num_inference_steps": 60
-            }, indent=2))
-            
-            # Enter interactive mode
-            interactive_mode(pipeline, refiner, depth_estimator, feature_extractor, logger)
+        # Run inference (batch or interactive mode)
+        run_inference(args, pipeline, refiner, depth_estimator, feature_extractor, logger)
         
         # Summary
         total_time = time.time() - total_import_start

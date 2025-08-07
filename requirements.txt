@@ -13,3 +13,8 @@ accelerate
 sentencepiece
 protobuf
 tqdm
+modal
+fastapi[standard]
+uvicorn[standard]
+hf_transfer
+requests==2.31.0
