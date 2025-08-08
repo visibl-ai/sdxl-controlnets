@@ -44,9 +44,12 @@ def setup_environment(config):
     
     # Set cache directories
     os.environ["HF_HOME"] = config.cache_dir
-    os.environ["HUGGINGFACE_HUB_CACHE"] = "hub"
-    os.environ["TRANSFORMERS_CACHE"] = "transformers"
-    os.environ["HF_DATASETS_CACHE"] = "datasets"
+    if not os.environ.get("HUGGINGFACE_HUB_CACHE"):
+        os.environ["HUGGINGFACE_HUB_CACHE"] = "hub"
+    if not os.environ.get("TRANSFORMERS_CACHE"):
+        os.environ["TRANSFORMERS_CACHE"] = "transformers"
+    if not os.environ.get("HF_DATASETS_CACHE"):
+        os.environ["HF_DATASETS_CACHE"] = "datasets"
     
     if config.offline_mode:
         os.environ["HF_HUB_OFFLINE"] = "1"

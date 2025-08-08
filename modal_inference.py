@@ -33,10 +33,14 @@ image = (
     .add_local_dir("src", "/root/src", copy=True, ignore=["__pycache__", "*.pyc"])
     .add_local_file("config.py", "/root/config.py", copy=True)
     .add_local_file("sdxl_diffusers_control.py", "/root/sdxl_diffusers_control.py", copy=True)
+    .add_local_file("config.json", "/root/config.json", copy=True)
     .env(
         {
             "HF_HUB_ENABLE_HF_TRANSFER": "1",  # faster downloads
-            "HF_HUB_CACHE": CACHE_DIR,
+            "HF_HOME": CACHE_DIR,
+            "HUGGINGFACE_HUB_CACHE": CACHE_DIR,
+            "TRANSFORMERS_CACHE": CACHE_DIR,
+            "HF_DATASETS_CACHE": CACHE_DIR,
             "CUDA_VISIBLE_DEVICES": "0",
             "PYTORCH_CUDA_ALLOC_CONF": "max_split_size_mb:512",
             "TORCH_ALLOW_TF32_CUBLAS_OVERRIDE": "1",
@@ -94,8 +98,9 @@ class ControlnetsInference:
     @modal.enter(snap=True)
     def load(self):
         logger.info("Loading base models (with snapshot)")
-        # Initialize base configuration
+        # Initialize base configuration with Modal cache directory
         self.base_config = Config()
+        self.base_config.cache_dir = CACHE_DIR  # Use Modal's cache volume
         
         # Setup environment and logging
         self.logger = setup_environment(self.base_config)

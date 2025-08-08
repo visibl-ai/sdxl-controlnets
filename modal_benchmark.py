@@ -4,7 +4,7 @@ import time
 
 import modal
 
-ControlnetsInference = modal.Cls.from_name("controlnets-inference", "ControlnetsInference")
+ControlnetsInference = modal.Cls.from_name("controlnets-inference-dev", "ControlnetsInference")
 infer = ControlnetsInference().run_batch
 
 
