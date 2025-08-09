@@ -9,7 +9,7 @@ class ModalSettings:
         self.web_app_id = os.environ.get("MODAL_WEB_APP_ID", "controlnets-web-dev")
         self.max_batch_size = int(os.environ.get("MODAL_BATCH_SIZE", 10))
         self.wait_ms = int(os.environ.get("MODAL_WAIT_MS", 500))
-        self.gpu = os.environ.get("MODAL_GPU", "A10G")
+        self.gpu = os.environ.get("MODAL_GPU", "L40S")
         self.timeout = int(os.environ.get("MODAL_TIMEOUT_MINS", 3)) * 60  # in seconds
         self.max_containers = int(os.environ.get("MODAL_MAX_CONTAINERS", 5))
 

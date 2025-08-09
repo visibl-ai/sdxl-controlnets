@@ -56,7 +56,7 @@ def run_benchmark(num_requests: int, input_file: str):
 
     # Calculate statistics
     avg_time_per_request = total_time / num_requests
-    cost_per_second = 0.000306
+    cost_per_second = 0.000542 # L40S
     total_cost = cost_per_second * total_time
 
     # Print results
