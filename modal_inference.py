@@ -84,7 +84,7 @@ results_volume = modal.Volume.from_name("results", create_if_missing=True)
 
 @app.cls(
     image=image,
-    gpu=modal_settings.gpu,
+    gpu=[modal_settings.gpu, modal_settings.fallback_gpu],
     timeout=modal_settings.timeout,
     volumes={CACHE_DIR: cache_volume, RESULTS_DIR: results_volume},
     secrets=[
