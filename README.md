@@ -156,7 +156,7 @@ All parameters are optional. If not specified, the default value from the Config
    - Save all outputs to specified paths
 3. Report success/failure statistics at the end
 
-## Memory requirements: 
+## Memory requirements:
 
 Depends on your model. Should just fit on an L4 or A10G. (24GB mem needed)
 ```
@@ -165,7 +165,7 @@ depth-anything/Depth-Anything-V2-Base-hf
 | 30%   30C    P8             23W /  230W |   22757MiB /  24564MiB |      0%      Default |
 ```
 
-`depth-anything/Depth-Anything-V2-Large-hf` gives a better quality depth but is too big to fit on 48gb with everything else. 
+`depth-anything/Depth-Anything-V2-Large-hf` gives a better quality depth but is too big to fit on 48gb with everything else.
 
 
 ## Tips

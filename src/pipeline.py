@@ -1,20 +1,17 @@
-import time
 import logging
+import time
+
 from diffusers import (
-    AutoencoderKL, 
+    AutoencoderKL,
     StableDiffusionXLControlNetImg2ImgPipeline,
-    StableDiffusionXLImg2ImgPipeline
+    StableDiffusionXLImg2ImgPipeline,
 )
 from diffusers.models import ControlNetModel, MultiControlNetModel
-from transformers import (
-    #CLIPTokenizer, 
-    #T5TokenizerFast,
-    DPTImageProcessor, 
-    DPTForDepthEstimation,
-    #CLIPTextModelWithProjection, 
-    #T5EncoderModel,
-    AutoModelForDepthEstimation,
+from transformers import (  # CLIPTokenizer,; T5TokenizerFast,; CLIPTextModelWithProjection,; T5EncoderModel,
     AutoImageProcessor,
+    AutoModelForDepthEstimation,
+    DPTForDepthEstimation,
+    DPTImageProcessor,
 )
 
 
@@ -32,22 +29,24 @@ def load_dpt_depth_processor(config, logger):
     """Load DPT depth estimation models"""
     logger.info("Loading DPT Depth estimator...")
     start_time = time.time()
-    
+
     depth_estimator = DPTForDepthEstimation.from_pretrained(
         config.depth_model,
         cache_dir=config.cache_dir,
         torch_dtype=config.torch_dtype,
         local_files_only=config.local_files_only,
     ).to(config.device)
-    
+
     feature_extractor = DPTImageProcessor.from_pretrained(
         config.depth_model,
         cache_dir=config.cache_dir,
         torch_dtype=config.torch_dtype,
-        local_files_only=config.local_files_only
+        local_files_only=config.local_files_only,
     )
-    
-    logger.info(f"DPT Depth processor loading took {time.time() - start_time:.4f} seconds")
+
+    logger.info(
+        f"DPT Depth processor loading took {time.time() - start_time:.4f} seconds"
+    )
     return depth_estimator, feature_extractor
 
 
@@ -55,21 +54,23 @@ def load_depth_anything_v2_processor(config, logger):
     """Load Depth Anything V2 depth estimation models"""
     logger.info("Loading Depth Anything V2 estimator...")
     start_time = time.time()
-    
+
     depth_estimator = AutoModelForDepthEstimation.from_pretrained(
         config.depth_anything_model,
         cache_dir=config.cache_dir,
         torch_dtype=config.torch_dtype,
         local_files_only=config.local_files_only,
     ).to(config.device)
-    
+
     feature_extractor = AutoImageProcessor.from_pretrained(
         config.depth_anything_model,
         cache_dir=config.cache_dir,
-        local_files_only=config.local_files_only
+        local_files_only=config.local_files_only,
     )
-    
-    logger.info(f"Depth Anything V2 processor loading took {time.time() - start_time:.4f} seconds")
+
+    logger.info(
+        f"Depth Anything V2 processor loading took {time.time() - start_time:.4f} seconds"
+    )
     return depth_estimator, feature_extractor
 
 
@@ -77,26 +78,26 @@ def load_pipeline(config, logger):
     """Load all models and create the pipeline"""
     logger.info("Loading models...")
     start_time = time.time()
-    
+
     # Load ControlNet
     logger.info("Loading Canny ControlNet model...")
     canny_controlnet = ControlNetModel.from_pretrained(
-        config.canny_controlnet_path, 
+        config.canny_controlnet_path,
         torch_dtype=config.torch_dtype,
         local_files_only=config.local_files_only,
-    ).to(config.device) 
+    ).to(config.device)
     # MODAL - you might be able to move all this .to stuff
     # later on and snapshot memory.
 
     logger.info("Loading Depth ControlNet model...")
     depth_controlnet = ControlNetModel.from_pretrained(
-        config.depth_controlnet_path, 
+        config.depth_controlnet_path,
         torch_dtype=config.torch_dtype,
         local_files_only=config.local_files_only,
     ).to(config.device)
-    
+
     multi_controlnet = MultiControlNetModel([canny_controlnet, depth_controlnet])
-    
+
     logger.info("Loading VAE...")
     vae = AutoencoderKL.from_pretrained(
         "madebyollin/sdxl-vae-fp16-fix",
@@ -107,8 +108,8 @@ def load_pipeline(config, logger):
     # Assemble pipeline with custom canny fix
     logger.info("Assembling Stable Diffusion pipeline...")
     pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
-        config.model_repo, 
-        controlnet=multi_controlnet, 
+        config.model_repo,
+        controlnet=multi_controlnet,
         torch_dtype=config.torch_dtype,
         cache_dir=config.cache_dir,
         local_files_only=config.local_files_only,
@@ -127,7 +128,7 @@ def load_pipeline(config, logger):
     )
 
     # MODAL - Maybe you can snapshot memory here?
-    pipe.to(config.device) 
+    pipe.to(config.device)
     refiner.to(config.device)
     logger.info(f"Pipeline loading took {time.time() - start_time:.4f} seconds")
     return pipe, refiner

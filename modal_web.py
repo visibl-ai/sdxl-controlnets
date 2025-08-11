@@ -23,7 +23,9 @@ web_image = (
             "MODAL_INFERENCE_APP_ID": os.environ.get(
                 "MODAL_INFERENCE_APP_ID", "controlnets-inference-dev"
             ),
-            "MODAL_WEB_APP_ID": os.environ.get("MODAL_WEB_APP_ID", "controlnets-web-dev"),
+            "MODAL_WEB_APP_ID": os.environ.get(
+                "MODAL_WEB_APP_ID", "controlnets-web-dev"
+            ),
             "MODAL_TIMEOUT_MINUTES": os.environ.get("MODAL_TIMEOUT_MINUTES", "30"),
         }
     )

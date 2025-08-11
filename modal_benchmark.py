@@ -4,7 +4,9 @@ import time
 
 import modal
 
-ControlnetsInference = modal.Cls.from_name("controlnets-inference-dev", "ControlnetsInference")
+ControlnetsInference = modal.Cls.from_name(
+    "controlnets-inference-dev", "ControlnetsInference"
+)
 infer = ControlnetsInference().run_batch
 
 
@@ -30,7 +32,7 @@ def parse_args():
 def run_benchmark(num_requests: int, input_file: str):
 
     # Load test data
-    with open(input_file, 'r') as f:
+    with open(input_file, "r") as f:
         test_data = json.load(f)
 
     # Track results
@@ -56,14 +58,12 @@ def run_benchmark(num_requests: int, input_file: str):
 
     # Calculate statistics
     avg_time_per_request = total_time / num_requests
-    cost_per_second = 0.000542 # L40S
+    cost_per_second = 0.000542  # L40S
     total_cost = cost_per_second * total_time
 
     # Print results
     print("\nLocal execution time is highly inaccurate (off by more than 5 seconds!!!)")
-    print(
-        "\nPlease refer to Modal dashboard for accurate metrics"
-    )
+    print("\nPlease refer to Modal dashboard for accurate metrics")
     print("\nBenchmark Results:")
     print(f"Total Requests: {num_requests}")
     print(f"Total Time: {total_time:.2f} seconds")

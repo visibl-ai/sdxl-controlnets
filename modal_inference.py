@@ -1,7 +1,7 @@
 import logging
 import os
-import time
 import tempfile
+import time
 from urllib.parse import urlparse, urlunparse
 
 import modal
@@ -32,7 +32,9 @@ image = (
     .pip_install_from_requirements("requirements.txt")
     .add_local_dir("src", "/root/src", copy=True, ignore=["__pycache__", "*.pyc"])
     .add_local_file("config.py", "/root/config.py", copy=True)
-    .add_local_file("sdxl_diffusers_control.py", "/root/sdxl_diffusers_control.py", copy=True)
+    .add_local_file(
+        "sdxl_diffusers_control.py", "/root/sdxl_diffusers_control.py", copy=True
+    )
     .add_local_file("config.json", "/root/config.json", copy=True)
     .env(
         {
@@ -53,7 +55,7 @@ image = (
 )
 
 # Import after defining image to ensure files are available
-from sdxl_diffusers_control import setup_environment, load_models
+from sdxl_diffusers_control import load_models, setup_environment
 from src.config import Config
 from src.generation import process_single_generation
 
@@ -101,12 +103,14 @@ class ControlnetsInference:
         # Initialize base configuration with Modal cache directory
         self.base_config = Config()
         self.base_config.cache_dir = CACHE_DIR  # Use Modal's cache volume
-        
+
         # Setup environment and logging
         self.logger = setup_environment(self.base_config)
-        
+
         # Load all models and store as instance variables
-        self.pipeline, self.refiner, self.depth_estimator, self.feature_extractor = load_models(self.base_config, self.logger)
+        self.pipeline, self.refiner, self.depth_estimator, self.feature_extractor = (
+            load_models(self.base_config, self.logger)
+        )
 
     def _upload_to_url(self, file_path: str, url: str):
         logger.info(f"Uploading to {url}")
@@ -145,35 +149,37 @@ class ControlnetsInference:
         # Create a config with overrides from config_dict
         if config_dict:
             # Handle URL input images
-            if 'input_image' in config_dict and config_dict['input_image']:
-                if config_dict['input_image'].startswith(("http://", "https://")):
-                    config_dict['input_image'] = download_and_save_image(config_dict['input_image'])
-            
+            if "input_image" in config_dict and config_dict["input_image"]:
+                if config_dict["input_image"].startswith(("http://", "https://")):
+                    config_dict["input_image"] = download_and_save_image(
+                        config_dict["input_image"]
+                    )
+
             item_config = Config(config_dict)
         else:
             item_config = self.base_config
-        
+
         # Process single generation using the loaded models
         try:
             success = process_single_generation(
-                self.pipeline, 
-                self.refiner, 
-                self.depth_estimator, 
-                self.feature_extractor, 
-                item_config, 
-                self.logger
+                self.pipeline,
+                self.refiner,
+                self.depth_estimator,
+                self.feature_extractor,
+                item_config,
+                self.logger,
             )
-            
+
             if not success:
                 raise Exception("Generation failed")
-            
+
             # Get the output path from config (use refined output)
             result_path = item_config.refined_output
 
             # Process the results
             result = {}
             result_key = result_key or "0"
-            
+
             # If output URL (typically a signed URL) provided, upload and return the URL
             # Otherwise just return the local path
             if output_url:
@@ -255,25 +261,25 @@ class ControlnetsInference:
                 "callback_url",
                 "result_key",
             }
-            
+
             # Process each input, extracting config and control parameters
             results = []
             for input_dict in sorted_inputs:
                 # Separate config parameters from control parameters
                 control_params = {}
                 config_params = {}
-                
+
                 for k, v in input_dict.items():
                     if k in valid_params:
                         control_params[k] = v
                     else:
                         # Everything else goes into config
                         config_params[k] = v
-                
+
                 # Add config_params as config_dict if there are any
                 if config_params:
                     control_params["config_dict"] = config_params
-                
+
                 results.append(self.run(**control_params))
 
             # If callback URL is provided, post results
